@@ -22,6 +22,8 @@ const pick = (a) => a[(Math.random() * a.length) | 0];
 const chance = (p) => Math.random() < p;
 
 let W, H, dpr, B, LW, SPEED, boil = 0;
+let lc, lctx; // night: each layer is darkened on its own canvas so its lights stay at the right depth
+let clock = +new URLSearchParams(location.search).get('t') || 0; // ?t=80 jumps straight to the evening
 const POLE_F = 0.65; // the poles and their cables scroll in a layer of their own, just behind the front row
 let layers = [], streams = {};
 
@@ -290,7 +292,7 @@ const DIMS = { tower: [14, 26, 38, 95], slab: [24, 38, 20, 50], tenement: [12, 2
 
 function spawnBuilding(lay) {
   const L = lay.L, u = B * L.s, type = pick(L.types), d = DIMS[type];
-  const b = { type, L, u, w: rand(d[0], d[1]) * u, h: rand(d[2], d[3]) * u, seed: rand(0, 1000), stacks: [] };
+  const b = { type, L, u, w: rand(d[0], d[1]) * u, h: rand(d[2], d[3]) * u, seed: rand(0, 1000), stacks: [], wins: [], lamps: [] };
   if (['tower', 'slab', 'deco'].includes(type) && chance(0.2)) b.h *= rand(1.25, 1.6); // the odd giant
   const tall = () => (chance(0.3) ? rand(75, 115) : rand(32, 58)) * u;
   if (type === 'factory') {
@@ -320,8 +322,11 @@ function renderBuilding(b) {
   const { type, L, u, w, h, seed } = b, fill = L.fill, thin = LW * 0.45;
   const dirt = (x0, x1, top, bottom = 0, amt = 1) => grime(x0, x1, top, bottom, u, amt * (L.links ? 1 : 0.7));
   const shade = (x, y, ww, hh) => shadeRect(x, y, ww, hh, seed + x);
+  // a window where someone is up watching telly at night; everyone else is asleep
+  const lightAt = (x, y, ww, hh, t) => b.wins.push({ x, y, w: ww, h: hh, t, k: Math.random(), people: chance(0.4) ? 2 : 1 });
   const win = (x, y, ww, hh, k) => {
     inkPoly(rectPts(x, y, ww, hh), { fill: h0(seed + k) > 0.3 ? INK : WHITE, w: thin * 1.3 });
+    if (chance(0.1)) lightAt(x, y, ww, hh, rand(0.15, 0.9));
     if (h0(seed + k + 0.37) > 0.45) { // an AC box hanging under the window
       inkPoly(rectPts(x + ww * 0.1, y + hh + 0.15 * u, ww * 0.8, 0.9 * u), { fill, w: thin * 1.2 });
       line(x + ww * 0.25, y + hh + 0.6 * u, x + ww * 0.75, y + hh + 0.6 * u, thin);
@@ -465,6 +470,10 @@ function renderBuilding(b) {
     inkPoly(rectPts(dx, -5 * v, dw, 5 * v), { fill });
     inkPoly(rectPts(dx + dw * 0.2, -4.4 * v, dw * 0.6, 1.8 * v), { fill: INK, w: thin });
     if (chance(0.5)) inkPoly(rectPts(dx + dw * 0.25, -2.3 * v, dw * 0.5, 0.6 * v), { fill: WHITE, w: thin * 0.6 }); // a note on the door
+    const lx = dx + dw + 0.5 * v, ly = -4.4 * v; // wall lamp by the door
+    line(lx - 0.4 * v, ly - 0.5 * v, lx, ly - 0.5 * v, thin);
+    inkPoly([[lx - 0.35 * v, ly - 0.8 * v], [lx + 0.35 * v, ly - 0.8 * v], [lx + 0.25 * v, ly], [lx - 0.25 * v, ly]], { fill: INK, w: thin });
+    b.lamps.push({ x: lx, y: ly, r: 4 * v, t: rand(0.1, 1.8) });
     const style = pick(['stripes', 'stripes', 'dark', 'plain', 'none']);
     if (style !== 'none') awning(x0 - 0.3 * v, x0 + winW + 0.3 * v, -sh + 1.9 * v, style);
     signBoard(x0 + winW / 2, -sh - 1.1 * v, pick(SHOP_NAMES), 1.3 * v, chance(0.5), winW + u);
@@ -510,6 +519,8 @@ function renderBuilding(b) {
     if (type === 'deco') { ctx.fillRect(0, -h * 0.62, w, h * 0.62); ctx.fillRect(w * 0.14, -h * 0.84, w * 0.72, h * 0.23); ctx.fillRect(w * 0.27, -h, w * 0.46, h * 0.17); ctx.fillRect(w * 0.48, -h - 14 * u, w * 0.04, 14 * u); }
     else if (type === 'factory') { ctx.fillRect(0, -h, w * 0.7, h); ctx.fillRect(w * 0.72, -h * 0.8, w * 0.28, h * 0.8); for (const s of b.stacks) ctx.fillRect(s.x - s.w / 2, s.y, s.w, -s.y); }
     else { ctx.fillRect(0, -h, w, h); if (h0(seed) > 0) ctx.fillRect(w * 0.5, -h - 12 * u, 0.6 * u, 12 * u); }
+    const lw = type === 'factory' ? w * 0.7 : w, lh = type === 'deco' ? h * 0.6 : type === 'factory' ? h * 0.9 : h;
+    for (let x = u; x + u < lw; x += 2.2 * u) for (let y = -lh + 2 * u; y < -2 * u; y += 3 * u) if (chance(0.06)) lightAt(x, y, 0.9 * u, 1.3 * u, rand(0.15, 0.9));
     return;
   }
 
@@ -570,7 +581,7 @@ function renderBuilding(b) {
       const sx = w * f, sw = 3.2 * u;
       inkPoly(rectPts(sx, -h - 3 * u, sw, h - 7 * u), { fill });
       shade(sx + sw * 0.7, -h - 3 * u, sw * 0.3, h - 7 * u);
-      for (let y = -h + u; y < -12 * u; y += fh) inkPoly(rectPts(sx + 0.8 * u, y, 1.2 * u, 2.4 * u), { fill: WHITE, w: thin });
+      for (let y = -h + u; y < -12 * u; y += fh) { inkPoly(rectPts(sx + 0.8 * u, y, 1.2 * u, 2.4 * u), { fill: WHITE, w: thin }); }
     }
     dirt(0, w, -h);
     wallACs(3 + (Math.random() * 6 | 0), 0.3 * u, w * 0.95, -h + 2 * u, -13 * u);
@@ -662,6 +673,8 @@ function renderBuilding(b) {
     for (let y = -dh + 0.5 * u; y < -open; y += 0.5 * u) line(dx, y, dx + dw, y, thin * 0.7);
     if (open) inkPoly(rectPts(dx, -open, dw, open), { fill: INK, w: thin });
     inkPoly(rectPts(w * 0.62, -h * 0.62, w * 0.22, h * 0.25), { fill: WHITE, w: thin * 1.3 });
+    b.lamps.push({ x: dx + 0.8 * u, y: -dh - 0.4 * u, r: 5 * u, t: rand(0.1, 1.8) });
+    inkPoly([[dx + 0.4 * u, -dh - 0.9 * u], [dx + 1.2 * u, -dh - 0.9 * u], [dx + u, -dh - 0.4 * u], [dx + 0.6 * u, -dh - 0.4 * u]], { fill: INK, w: thin });
     line(w * 0.73, -h * 0.62, w * 0.73, -h * 0.37, thin); line(w * 0.62, -h * 0.495, w * 0.84, -h * 0.495, thin);
     inkPoly(rectPts(w * 0.62, -4.5 * u, 2 * u, 4.5 * u), { fill });
     dirt(0, w, -h, 0, 1.6);
@@ -691,7 +704,7 @@ function renderBuilding(b) {
     for (let i = 0; i < n; i++) hatch([polyClip([[i * tw, -h], [i * tw, -h - th], [i * tw + tw * 0.35, -h - th * 0.65], [i * tw + tw * 0.35, -h]])], i * tw, -h - th / 2, th, -1.2, LW * 0.8, thin, seed + i);
     line(0, -h, hw, -h, thin * 1.5);
     if (chance(0.6)) razorWire(0, hw, -h, 0.7 * u);
-    for (let x = 1.5 * u; x + 1.8 * u < hw - u; x += 3 * u) inkPoly(rectPts(x, -h * 0.85, 1.8 * u, h * 0.3), { fill: WHITE, w: thin * 1.5 });
+    for (let x = 1.5 * u; x + 1.8 * u < hw - u; x += 3 * u) { inkPoly(rectPts(x, -h * 0.85, 1.8 * u, h * 0.3), { fill: WHITE, w: thin * 1.5 }); }
     dirt(0, hw, -h, 0, 1.3);
     plumbing(3 + (Math.random() * 3 | 0), 0.5 * u, hw - 0.5 * u, -h + 0.5 * u, 0);
     camera(0.2 * u, -h * 0.75, -1, 0.75 * u);
@@ -753,7 +766,8 @@ function makePole(x) {
   it.attach = [[-3, -29.5], [-1.4, -29.5], [1.4, -29.5], [3, -29.5], [-2, -26.5], [2, -26.5]].map(([a, b]) => [4 * U + a * U, b * U]);
   it.drops = [];
   for (let i = 0, n = 1 + (Math.random() * 3 | 0); i < n; i++) it.drops.push({ a: (Math.random() * 6) | 0, dx: rand(-16, 12) * U, h: rand(15, 45) * B, sag: rand(1, 3) * U });
-  const transformer = chance(0.4), poster = chance(0.5), cam = chance(0.4), camDir = pick([-1, 1]);
+  const transformer = chance(0.4), poster = chance(0.5), cam = chance(0.4), camDir = pick([-1, 1]), side = pick([-1, 1]);
+  it.lamp = [4 * U + side * 4.6 * U, -26.9 * U];
   it.sprite = makeSprite(8 * U, 33 * U, B, () => {
     const x = 4 * U, thin = LW * 0.45;
     inkPoly([[x - 0.45 * U, 0], [x - 0.3 * U, -31 * U], [x + 0.3 * U, -31 * U], [x + 0.45 * U, 0]], { fill: PAPER });
@@ -771,6 +785,8 @@ function makePole(x) {
       line(x + 0.3 * U, -20 * U, x + 0.5 * U, -20 * U, LW);
     }
     if (cam) camera(x + (camDir > 0 ? 0.35 : -0.35) * U, -15 * U, camDir, 0.7 * U);
+    stroke(x, -26.6 * U, x + side * 1.5 * U, -28.6 * U, x + side * 4.4 * U, -27.9 * U, LW * 1.1, x + 3); // street light
+    inkPoly([[x + side * 3.6 * U, -28.1 * U], [x + side * 5.4 * U, -27.9 * U], [x + side * 5.0 * U, -27.1 * U], [x + side * 3.8 * U, -27.2 * U]], { fill: INK, w: thin });
     if (poster) {
       inkPoly(rectPts(x - 0.8 * U, -9 * U, 1.6 * U, 2 * U), { fill: WHITE, w: thin });
       for (let i = 0; i < 3; i++) line(x - 0.5 * U, -8.5 * U + i * 0.5 * U, x + 0.5 * U, -8.5 * U + i * 0.5 * U, thin * 0.7);
@@ -858,6 +874,7 @@ function resize() {
   for (let i = 0; i < 120; i++) updateSmoke(0.05);
 
   streams = { poles: makeStream([14, 24], -SPEED * POLE_F, makePole) };
+  lc = document.createElement('canvas'); lc.width = W * dpr; lc.height = H * dpr; lctx = lc.getContext('2d');
 }
 
 // pipes and cables across the alleys between neighbouring front buildings
@@ -897,9 +914,74 @@ function drawWires() {
   });
 }
 
+// ---------- day and night ----------
+
+const CYCLE = 135, DUSK = [20, 45], DAWN = [115, 135];
+const smoothstep = (x) => x * x * (3 - 2 * x);
+const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+const rgb = (c, a = 1) => `rgba(${c.map(Math.round).join(',')},${a})`;
+
+// 0 in daytime, 1 at night
+function darkness() {
+  const t = clock % CYCLE;
+  if (t < DUSK[0]) return 0;
+  if (t < DUSK[1]) return smoothstep((t - DUSK[0]) / (DUSK[1] - DUSK[0]));
+  if (t < DAWN[0]) return 1;
+  return 1 - smoothstep((t - DAWN[0]) / (DAWN[1] - DAWN[0]));
+}
+
+// no sun, no moon, no stars: the sky just goes from overcast to murk
+function drawSky(d) {
+  const day = [214, 212, 207], dusk = [150, 149, 150], night = [26, 28, 34];
+  const col = d < 0.5 ? mix(day, dusk, d / 0.5) : mix(dusk, night, (d - 0.5) / 0.5);
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, rgb(col.map((v) => v * 0.9))); g.addColorStop(1, rgb(mix(col, [120, 122, 128], 0.15 * d)));
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+
+function lampGlow(x, y, r, d) {
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, `rgba(200,214,228,${0.32 * d})`); g.addColorStop(0.25, `rgba(180,196,214,${0.12 * d})`); g.addColorStop(1, 'rgba(180,196,214,0)');
+  ctx.fillStyle = g; ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+  ctx.fillStyle = `rgba(214,226,238,${0.7 * d})`; ctx.beginPath(); ctx.arc(x, y, Math.max(1, r * 0.05), 0, TAU); ctx.fill();
+}
+
+// the odd window with a telly flickering, and people slumped in front of it; a few lamps
+function drawLights(lay, d, time) {
+  for (const b of lay.items) {
+    if (b.x > W + 5 * B || b.x + b.w < -5 * B) continue;
+    for (const wn of b.wins) {
+      if (d < wn.t) continue;
+      const x = b.x + wn.x, y = lay.base + wn.y, on = Math.min(1, (d - wn.t) * 5);
+      const f = 0.5 + 0.5 * Math.abs(Math.sin(time * (2 + wn.k * 3) + wn.k * 40) * Math.sin(time * 0.7 + wn.k * 9));
+      ctx.fillStyle = `rgba(${118 + 30 * f},${136 + 30 * f},${166 + 30 * f},${(0.3 + 0.3 * f) * on})`;
+      ctx.fillRect(x, y, wn.w, wn.h);
+      ctx.fillStyle = `rgba(10,10,16,${0.85 * on})`;
+      for (let i = 0; i < wn.people; i++) { // backs of heads on the sofa
+        const cx = x + wn.w * (wn.people === 1 ? 0.5 : 0.3 + i * 0.4), r = Math.min(wn.w * 0.16, wn.h * 0.17);
+        ctx.beginPath(); ctx.ellipse(cx, y + wn.h, r * 1.9, r * 1.5, 0, Math.PI, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, y + wn.h - r * 2.1, r, 0, TAU); ctx.fill();
+      }
+    }
+    for (const l of b.lamps) if (d > l.t) lampGlow(b.x + l.x, lay.base + l.y, l.r, Math.min(1, (d - l.t) * 4));
+  }
+}
+
+function drawStreetLights(d) {
+  for (const p of streams.poles.items) {
+    const x = p.x + p.lamp[0], y = p.y + p.lamp[1], U = p.U;
+    const g = ctx.createLinearGradient(0, y, 0, H);
+    g.addColorStop(0, `rgba(190,206,224,${0.13 * d})`); g.addColorStop(1, `rgba(190,206,224,${0.02 * d})`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(x - 0.6 * U, y); ctx.lineTo(x + 0.6 * U, y); ctx.lineTo(x + 9 * U, H); ctx.lineTo(x - 9 * U, H); ctx.fill();
+    lampGlow(x, y, 6 * U, d * 0.8);
+  }
+}
+
 // ---------- frame ----------
 
 function update(time, dt) {
+  clock += dt;
   for (const lay of layers) {
     const dx = SPEED * lay.L.f * dt;
     for (const b of lay.items) b.x -= dx;
@@ -914,16 +996,30 @@ function update(time, dt) {
 function frame(time) {
   boil = Math.floor(time * 9);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.fillStyle = SKY; ctx.fillRect(0, 0, W, H);
+  const d = darkness(), night = d > 0.001, main = ctx;
+  drawSky(d);
   layers.forEach((lay, i) => {
+    if (night) { ctx = lctx; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, lc.width, lc.height); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
     for (const b of lay.items) blit(b.sprite, b.x, lay.base);
     // fill in under each layer, so nearer gaps show a solid mass of town rather than floating buildings
     if (lay.base < H) { ctx.fillStyle = lay.L.fill; ctx.fillRect(0, lay.base, W, H - lay.base); }
     if (lay.L.links) drawLinks(lay);
     drawSmoke(lay);
-    if (i === layers.length - 2) {
+    const poles = i === layers.length - 2;
+    if (poles) {
       for (const it of streams.poles.items) blit(it.sprite, it.x, it.y);
       drawWires();
+    }
+    if (night) {
+      // darken just what this layer drew, then switch its lights on
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.fillStyle = `rgba(14,16,24,${Math.min(0.92, d * (0.82 + 0.03 * (layers.length - 1 - i)))})`;
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'source-over';
+      drawLights(lay, d, time);
+      if (poles) drawStreetLights(d);
+      ctx = main;
+      ctx.drawImage(lc, 0, 0, W, H);
     }
   });
 

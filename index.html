@@ -1,41 +1,839 @@
-fs89324hrfdsjl23233jfDFSsjfdjffffffffffffffffffffffffff
-Public
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Staden</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #d6d4cf; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const c = document.getElementById('c');
+let ctx = c.getContext('2d'); // swapped briefly while pre-rendering sprites
 
-About
+const TAU = Math.PI * 2;
+const INK = '#16110f', PAPER = '#f2ead6', WHITE = '#fffdf4', SKY = '#d6d4cf';
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = (a) => a[(Math.random() * a.length) | 0];
+const chance = (p) => Math.random() < p;
 
-Great repository names are short and memorable. How about GitHUB!!!!!!!!!!!!? Choose who can see and commit to this repository Configuration Choose visibility * Choose who can see and commit to this repository Start with a template Templates pre-configure your repository with files. Add README READMEs can be
-Resources
-Readme
-Activity
-Stars
-0 stars
-Watchers
-0 watching
-Forks
-0 forks
-Initial commit
-3741412
- · 
-2 minutes ago
-Name	Last commit message
-	Last commit date
-README.md
-	
-Initial commit
-	
-2 minutes ago
-Repository files navigation
+let W, H, dpr, B, LW, SPEED, boil = 0;
+const POLE_F = 0.65; // the poles and their cables scroll in a layer of their own, just behind the front row
+let layers = [], streams = {};
 
-    README
+// ---------- ink helpers ----------
 
-fs89324hrfdsjl23233jfDFSsjfdjffffffffffffffffffffffffff
+// static noise, and "boiling" noise for the hand-drawn wobble of things that move
+const h0 = (n) => { const s = Math.sin(n * 127.1 + 17.3) * 43758.5453; return (s - Math.floor(s)) * 2 - 1; };
+const hb = (n) => h0(n + boil * 7.13);
+const rectPts = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+const polyClip = (pts) => () => { ctx.moveTo(pts[0][0], pts[0][1]); for (const p of pts) ctx.lineTo(p[0], p[1]); ctx.closePath(); };
 
-Great repository names are short and memorable. How about GitHUB!!!!!!!!!!!!? Choose who can see and commit to this repository Configuration Choose visibility * Choose who can see and commit to this repository Start with a template Templates pre-configure your repository with files. Add README READMEs can be
-Releases
-No releases published
-Create a new release
-Packages
-No packages published
-Publish your first package
-Contributors
-1 (1)
+function smooth(pts, closed) {
+  const n = pts.length, mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  if (closed) {
+    const s = mid(pts[n - 1], pts[0]); ctx.moveTo(s[0], s[1]);
+    for (let i = 0; i < n; i++) { const q = mid(pts[i], pts[(i + 1) % n]); ctx.quadraticCurveTo(pts[i][0], pts[i][1], q[0], q[1]); }
+    ctx.closePath();
+  } else {
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < n - 1; i++) { const q = mid(pts[i], pts[i + 1]); ctx.quadraticCurveTo(pts[i][0], pts[i][1], q[0], q[1]); }
+    ctx.lineTo(pts[n - 1][0], pts[n - 1][1]);
+  }
+}
+
+function ellPts(x, y, rx, ry, { rot = 0, lump = 0.02, seed = 0 } = {}) {
+  const n = Math.max(10, Math.min(48, Math.round((rx + ry) / 5)));
+  const amp = Math.min(LW * 0.5, (rx + ry) * 0.02), cr = Math.cos(rot), sr = Math.sin(rot), pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = i / n * TAU;
+    const r = 1 + lump * (Math.sin(3 * a + seed) * 0.6 + Math.sin(5 * a + seed * 2.3) * 0.4);
+    const px = Math.cos(a) * rx * r + hb(seed + i) * amp, py = Math.sin(a) * ry * r + hb(seed + i + 50) * amp;
+    pts.push([x + px * cr - py * sr, y + px * sr + py * cr]);
+  }
+  return pts;
+}
+
+function ink(pts, { closed = true, fill, w = LW } = {}) {
+  ctx.beginPath(); smooth(pts, closed);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (w) { ctx.lineWidth = w; ctx.strokeStyle = INK; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke(); }
+}
+
+// a wobbly quadratic stroke
+function stroke(x0, y0, cx, cy, x1, y1, w, seed) {
+  const pts = [], n = 6, amp = LW * 0.4;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, u = 1 - t, j = i && i < n ? 1 : 0.3;
+    pts.push([u * u * x0 + 2 * u * t * cx + t * t * x1 + hb(seed + i) * amp * j, u * u * y0 + 2 * u * t * cy + t * t * y1 + hb(seed + i + 9) * amp * j]);
+  }
+  ink(pts, { closed: false, w });
+}
+
+// wobbly straight-edged outline (ink() would round off the corners)
+function inkPoly(pts, { closed = true, fill, w = LW } = {}) {
+  const n = pts.length, segs = closed ? n : n - 1;
+  ctx.beginPath();
+  for (let i = 0; i < segs; i++) {
+    const [ax, ay] = pts[i], [bx, by] = pts[(i + 1) % n];
+    const k = Math.max(1, Math.round(Math.hypot(bx - ax, by - ay) / 25));
+    for (let j = 0; j < k; j++) {
+      const t = j / k, jit = j ? LW * 0.35 : 0, sd = ax * 0.13 + ay * 0.71 + j * 3.1;
+      const x = ax + (bx - ax) * t + hb(sd) * jit, y = ay + (by - ay) * t + hb(sd + 1.7) * jit;
+      if (i || j) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    }
+  }
+  if (closed) ctx.closePath(); else ctx.lineTo(pts[n - 1][0], pts[n - 1][1]);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (w) { ctx.lineWidth = w; ctx.strokeStyle = INK; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.stroke(); }
+}
+const line = (x0, y0, x1, y1, w) => inkPoly([[x0, y0], [x1, y1]], { closed: false, w });
+
+// scratchy parallel hatching inside the clip paths
+function hatch(clips, x, y, r, ang, gap, w, seed) {
+  ctx.save();
+  for (const c of clips) { ctx.beginPath(); c(); ctx.clip(); }
+  ctx.strokeStyle = INK; ctx.lineWidth = w; ctx.lineCap = 'round';
+  const dx = Math.cos(ang), dy = Math.sin(ang);
+  ctx.beginPath();
+  for (let o = -r, i = 0; o <= r; o += gap, i++) {
+    const a = o + hb(seed + i) * gap * 0.3, b = o + hb(seed + i + 0.5) * gap * 0.3;
+    ctx.moveTo(x - dx * r - dy * a, y - dy * r + dx * a);
+    ctx.lineTo(x + dx * r - dy * b, y + dy * r + dx * b);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+const shadeRect = (x, y, w, h, seed, ang = 1) => hatch([() => ctx.rect(x, y, w, h)], x + w / 2, y + h / 2, (w + h) / 2 + 2, ang, LW * 1.4, LW * 0.45, seed);
+
+// an outlined pipe: thick ink stroke with a lighter core
+function pipeLine(pts, d, fill = PAPER) {
+  ctx.lineJoin = 'round'; ctx.lineCap = 'butt';
+  ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+  ctx.strokeStyle = INK; ctx.lineWidth = d + LW * 0.9; ctx.stroke();
+  ctx.strokeStyle = fill; ctx.lineWidth = d; ctx.stroke();
+}
+
+function cable(x0, y0, x1, y1, sag, w = LW * 0.5) {
+  ctx.strokeStyle = INK; ctx.lineWidth = w; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo((x0 + x1) / 2, (y0 + y1) / 2 + sag, x1, y1); ctx.stroke();
+}
+
+function signBoard(cx, cy, text, size, dark, maxW = Infinity) {
+  ctx.font = `bold ${size}px "Trebuchet MS", Verdana, sans-serif`;
+  let tw = ctx.measureText(text).width;
+  if (tw + size > maxW) { size *= maxW / (tw + size); ctx.font = `bold ${size}px "Trebuchet MS", Verdana, sans-serif`; tw = ctx.measureText(text).width; }
+  const bw = tw + size, bh = size * 1.5;
+  inkPoly(rectPts(cx - bw / 2, cy - bh / 2, bw, bh), { fill: dark ? INK : WHITE, w: LW * 0.9 });
+  ctx.fillStyle = dark ? WHITE : INK; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, cx, cy + size * 0.05);
+}
+
+function sittingCat(x, y, k, dir, fill = INK) {
+  stroke(x - dir * 0.5 * k, y, x - dir * 1.9 * k, y - 0.1 * k, x - dir * 1.6 * k, y - 1.3 * k, LW * 0.8, x);
+  ink(ellPts(x, y - 1.1 * k, 0.85 * k, 1.15 * k, { seed: x }), { fill, w: LW * 0.6 });
+  ink(ellPts(x + dir * 0.25 * k, y - 2.55 * k, 0.62 * k, 0.55 * k, { seed: x + 1 }), { fill, w: LW * 0.6 });
+  for (const e of [-0.45, 0.25]) inkPoly([[x + dir * e * k, y - 2.8 * k], [x + dir * (e + 0.15) * k, y - 3.45 * k], [x + dir * (e + 0.45) * k, y - 2.95 * k]], { fill, w: LW * 0.5 });
+  if (fill === INK) { ctx.fillStyle = '#f4f0a0'; for (const e of [0.05, 0.5]) { ctx.beginPath(); ctx.arc(x + dir * e * k, y - 2.6 * k, 0.12 * k, 0, TAU); ctx.fill(); } }
+}
+
+// ---------- dirt ----------
+
+// smudges, soot, muck from the street, rain streaks and cracks over a wall from y = top to y = bottom
+function grime(x0, x1, top, bottom, u, amt = 1) {
+  const ww = x1 - x0, hh = bottom - top, thin = LW * 0.45;
+  if (ww <= 0 || hh <= 0) return;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x0, top, ww, hh); ctx.clip();
+  for (let i = 0, n = 1 + Math.round(ww * hh / (45 * u * u) * amt); i < n; i++) {
+    const cx = rand(x0, x1), cy = rand(top, bottom), r = rand(1.5, 5) * u;
+    ctx.globalAlpha = rand(0.05, 0.15);
+    ink(ellPts(cx, cy, r, r * rand(0.5, 1.3), { lump: 0.3, seed: cx + cy }), { fill: INK, w: 0 });
+  }
+  ctx.globalAlpha = Math.min(1, amt);
+  const soot = ctx.createLinearGradient(0, top, 0, top + 7 * u);
+  soot.addColorStop(0, 'rgba(22,17,15,0.3)'); soot.addColorStop(1, 'rgba(22,17,15,0)');
+  ctx.fillStyle = soot; ctx.fillRect(x0, top, ww, 7 * u);
+  const muck = ctx.createLinearGradient(0, bottom - 6 * u, 0, bottom);
+  muck.addColorStop(0, 'rgba(22,17,15,0)'); muck.addColorStop(1, 'rgba(22,17,15,0.35)');
+  ctx.fillStyle = muck; ctx.fillRect(x0, bottom - 6 * u, ww, 6 * u);
+  ctx.globalAlpha = 1; ctx.fillStyle = INK;
+  const dots = (yA, yB, n) => { for (let i = 0; i < n; i++) { const r = rand(0.05, 0.16) * u; ctx.fillRect(rand(x0, x1), rand(yA, yB), r * 2, r * 2); } };
+  dots(top, top + 5 * u, ww / u * 5 * amt);
+  dots(bottom - 4 * u, bottom, ww / u * 7 * amt);
+  dots(top, bottom, ww * hh / (u * u) * 0.12 * amt);
+  ctx.strokeStyle = INK; ctx.lineWidth = thin * 0.6; ctx.lineCap = 'round';
+  for (let i = 0, n = Math.round(ww / (2 * u) * amt); i < n; i++) {
+    const x = rand(x0, x1), y = chance(0.5) ? top : rand(top, bottom - 4 * u), len = rand(3, 20) * u;
+    ctx.globalAlpha = rand(0.3, 0.7);
+    ctx.beginPath(); ctx.moveTo(x, y);
+    for (let t = 1; t <= 6; t++) ctx.lineTo(x + Math.sin(t * 1.7 + x) * 0.15 * u, y + len * t / 6);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1; ctx.lineWidth = thin * 0.9;
+  for (let i = 0, n = Math.round(rand(0, 3) * amt); i < n; i++) {
+    let x = rand(x0, x1), y = rand(top, bottom);
+    ctx.beginPath(); ctx.moveTo(x, y);
+    for (let k = 0; k < 6; k++) { x += rand(-0.8, 0.8) * u; y += rand(0.4, 1.4) * u; ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// scribbled tags at street level
+function tags(x0, x1, u) {
+  ctx.strokeStyle = INK; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (let i = 0, n = Math.random() * 3 | 0; i < n; i++) {
+    const x = rand(x0, Math.max(x0, x1 - 5 * u)), y = -rand(1.5, 6) * u, len = rand(2.5, 5) * u, loops = rand(2, 5), amp = rand(0.4, 0.9) * u;
+    ctx.lineWidth = LW * rand(0.5, 0.9);
+    ctx.beginPath();
+    for (let t = 0; t <= 1.001; t += 0.02) {
+      const a = t * loops * TAU, px = x + t * len + Math.cos(a) * amp * 0.6, py = y - Math.sin(a) * amp - Math.sin(t * 9) * 0.3 * u;
+      if (t) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+    }
+    ctx.stroke();
+    if (chance(0.5)) { ctx.beginPath(); ctx.moveTo(x - 0.3 * u, y + amp * 1.3); ctx.lineTo(x + len + 0.3 * u, y + amp * 1.1); ctx.stroke(); }
+  }
+}
+
+// ---------- sprites: draw once, then just slide them along ----------
+
+function offscreen(w, h, draw) {
+  const cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.ceil(w * dpr)); cv.height = Math.max(1, Math.ceil(h * dpr));
+  const main = ctx, b = boil;
+  ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); boil = 0;
+  draw();
+  ctx = main; boil = b;
+  return cv;
+}
+
+// origin of draw() is the base-left corner; top/bottom are how far it reaches above/below
+function makeSprite(w, top, bottom, draw) {
+  const pad = 3 * B;
+  const cv = offscreen(w + 2 * pad, top + bottom + pad, () => { ctx.translate(pad, top + pad / 2); draw(); });
+  return { cv, pad, top: top + pad / 2, w: cv.width / dpr, h: cv.height / dpr };
+}
+const blit = (s, x, y) => ctx.drawImage(s.cv, x - s.pad, y - s.top, s.w, s.h);
+
+// ---------- buildings ----------
+
+const MIX = ['tower', 'tower', 'slab', 'tenement', 'tenement', 'deco', 'shop', 'workshop'];
+const LAYER_DEFS = [
+  { s: 0.4, f: 0.1, base: 0.58, fill: '#c9c6bf', flat: true, gap: [-4, 0], types: [...MIX, 'factory', 'factory', 'plant'] },
+  { s: 0.55, f: 0.22, base: 0.7, fill: '#dcd5c3', lw: 0.45, gap: [-3, 0], types: [...MIX, 'factory', 'factory', 'plant'] },
+  { s: 0.72, f: 0.4, base: 0.84, fill: '#e5dfcc', lw: 0.6, gap: [-2, 0.5], types: [...MIX, 'factory', 'plant'] },
+  { s: 1, f: 1, base: 1, fill: PAPER, lw: 0.9, gap: [-1, 3], types: [...MIX, 'workshop', 'workshop'], links: true },
+];
+const WORKSHOP_NAMES = ['VERKSTAD', 'SVETS & SMIDE', 'BILVERKSTAD', 'PLÅTSLAGERI', 'RÖRMOKERI', 'GJUTERI', 'MEK. VERKSTAD', 'DÄCK',
+  'SKROT', 'LACKERING', 'SNICKERI', 'MOTORER', 'FJÄDRAR & BULTAR', 'OLJA', 'SLIPERI', 'KYLMONTAGE'];
+const SHOP_NAMES = ['BEGAGNADE TÄNDER', 'SKRUVAR & SORG', 'ÅNGEST AB', 'LÖSA DELAR', 'KORV & JURIDIK', 'SPÖKEN KÖPES', 'TOMMA BURKAR',
+  'HATTAR FÖR HUNDAR', 'VÄNTRUM', 'INGENTING', 'BEGAGNAD LUFT', 'KATTMAT & KÄNSLOR', 'NYCKLAR UTAN LÅS', 'FUKT', 'SPRINGFJÄDRAR',
+  'MÅNADENS RÖR', 'ENBART VÄNSTERSKOR', 'GLASÖGON FÖR FISKAR', 'GAMLA LJUD', 'ÅTERVUNNA SKRATT', 'KNAPPAR & KNARR', 'DAMM I LÖSVIKT',
+  'URMAKARE (STÄNGT)', 'PERUKER & PARAFFIN', 'SNÖRE', 'HÅL', 'ÄGG & ELEKTRONIK', 'SORGLIGA LEKSAKER', 'TRASIGA PARAPLYER', 'MÖRKER',
+  'EKO', 'ÖGON', 'SKELETT & SKOR', 'FRISÖR FÖR KATTER', 'ÖPPET 03–04', 'LIM', 'FEL NUMMER', 'SVETT & SÖTSAKER', 'BURKAR MED INGET I',
+  'KORV', 'TOBAK', 'FRISÖR', 'KIOSK', 'LOTTO', 'URMAKARE', 'PANT'];
+const ODD_THINGS = ['fish', 'clock', 'teeth', 'head', 'boot', 'bottle', 'key', 'eye', 'cat', 'hat', 'glasses'];
+const HANGING = ['boot', 'key', 'fish', 'teeth', 'glasses', 'hat', 'clock', 'eye'];
+const DIMS = { tower: [14, 26, 38, 95], slab: [24, 38, 20, 50], tenement: [12, 20, 18, 40], deco: [18, 30, 55, 110], shop: [9, 15, 11, 19], workshop: [14, 24, 9, 15], factory: [30, 46, 12, 22], plant: [52, 64, 18, 24] };
+
+function spawnBuilding(lay) {
+  const L = lay.L, u = B * L.s, type = pick(L.types), d = DIMS[type];
+  const b = { type, L, u, w: rand(d[0], d[1]) * u, h: rand(d[2], d[3]) * u, seed: rand(0, 1000), stacks: [] };
+  if (['tower', 'slab', 'deco'].includes(type) && chance(0.2)) b.h *= rand(1.25, 1.6); // the odd giant
+  const tall = () => (chance(0.3) ? rand(75, 115) : rand(32, 58)) * u;
+  if (type === 'factory') {
+    const hw = b.w * 0.7, n = 1 + (Math.random() * 3 | 0);
+    for (let i = 0; i < n; i++) b.stacks.push({ x: hw * (n === 1 ? rand(0.3, 0.7) : 0.15 + i * 0.7 / (n - 1)), y: -tall(), w: rand(2.4, 3.6) * u, dark: chance(0.5), t: rand(0, 0.4) });
+  } else if (type === 'plant') {
+    // coal power plant: cooling towers breathing steam, and one very tall chimney
+    b.towers = [{ x: b.w * 0.14, h: rand(28, 36) * u }, { x: b.w * 0.4, h: rand(24, 32) * u }];
+    for (const t of b.towers) b.stacks.push({ x: t.x, y: -t.h, w: t.h * 0.38, steam: true, t: rand(0, 0.3) });
+    b.stacks.push({ x: b.w * 0.86, y: -rand(95, 130) * u, w: 4.5 * u, dark: true, t: 0 });
+  } else if (type === 'workshop') {
+    b.roof = pick(['shed', 'gable', 'saw']);
+    b.stacks.push({ x: b.w * rand(0.15, 0.85), y: -b.h - rand(5, 9) * u, w: 0.9 * u, dark: chance(0.7), t: rand(0, 1), small: true, vent: true }); // stovepipe
+  } else if (type === 'tenement') {
+    for (const f of [0.2, 0.7]) b.stacks.push({ x: b.w * f + 0.8 * u, y: -b.h - 4 * u, w: 1.6 * u, dark: chance(0.3), t: rand(0, 2), small: true });
+  } else if (type !== 'deco' && chance(0.6)) { // a smoking vent on the roof
+    b.stacks.push({ x: b.w * rand(0.15, 0.85), y: -b.h - rand(3, 5) * u, w: 1.2 * u, dark: chance(0.4), t: rand(0, 2), small: true, vent: true });
+  }
+  // pipes and cables strung across the alley to the next building
+  b.links = !L.links ? [] : Array.from({ length: 2 + (Math.random() * 4 | 0) }, () => chance(0.5)
+    ? { pipe: true, y0: rand(0.05, 0.6), y1: rand(0.05, 0.6), d: rand(0.5, 1.3) * u, jog: rand(0.25, 0.75) }
+    : { pipe: false, y0: rand(0.1, 0.95), y1: rand(0.1, 0.95), sag: rand(0.5, 4) * u });
+  const top = Math.max(b.h + 20 * u, ...b.stacks.map((s) => -s.y + 2 * u));
+  b.sprite = makeSprite(b.w, top, B, () => { LW = B * 0.3 * (L.lw || 1); renderBuilding(b); if (!L.flat) tags(0, b.w, u); LW = B * 0.3; });
+  b.x = lay.cursor;
+  lay.items.push(b);
+  lay.cursor += b.w + rand(L.gap[0], L.gap[1]) * u;
+}
+
+function renderBuilding(b) {
+  const { type, L, u, w, h, seed } = b, fill = L.fill, thin = LW * 0.45;
+  const dirt = (x0, x1, top, bottom = 0, amt = 1) => grime(x0, x1, top, bottom, u, amt * (L.links ? 1 : 0.7));
+  const shade = (x, y, ww, hh) => shadeRect(x, y, ww, hh, seed + x);
+  const win = (x, y, ww, hh, k) => {
+    inkPoly(rectPts(x, y, ww, hh), { fill: h0(seed + k) > 0.3 ? INK : WHITE, w: thin * 1.3 });
+    if (h0(seed + k + 0.37) > 0.45) { // an AC box hanging under the window
+      inkPoly(rectPts(x + ww * 0.1, y + hh + 0.15 * u, ww * 0.8, 0.9 * u), { fill, w: thin * 1.2 });
+      line(x + ww * 0.25, y + hh + 0.6 * u, x + ww * 0.75, y + hh + 0.6 * u, thin);
+    }
+  };
+  const drain = (x, top) => {
+    pipeLine([[x, top + 0.8 * u], [x, -0.7 * u], [x + 0.9 * u, -0.2 * u]], 0.5 * u, fill);
+    inkPoly([[x - 0.7 * u, top], [x + 0.7 * u, top], [x + 0.35 * u, top + u], [x - 0.35 * u, top + u]], { fill, w: thin * 1.2 });
+    for (let y = top + 4 * u; y < -2 * u; y += 4 * u) line(x - 0.5 * u, y, x + 0.5 * u, y, thin * 1.6);
+  };
+  const antenna = (x, roofY, hh) => {
+    line(x, roofY, x, roofY - hh, thin * 1.6);
+    for (const [f, len] of [[1, 3.4], [0.7, 2.3]]) {
+      const y = roofY - hh * f, l = len * u;
+      line(x - l * 0.3, y, x + l * 0.7, y, thin * 1.3);
+      for (let e = 0; e < 5; e++) { const ex = x - l * 0.3 + e * l / 4.2, el = (0.8 - e * 0.09) * u; line(ex, y - el, ex, y + el, thin); }
+    }
+    cable(x, roofY - hh * 0.55, x - hh * 0.35, roofY, 0, thin * 0.6);
+    cable(x, roofY - hh * 0.55, x + hh * 0.35, roofY, 0, thin * 0.6);
+  };
+  // satellite dish on a short mount, tilted at the sky
+  const dish = (x, y, r, dir) => {
+    const rot = -dir * 0.9, cx = x + dir * 0.2 * r, cy = y - r * 0.9;
+    line(x, y, cx, cy, thin * 1.6);
+    ink(ellPts(cx, cy, r, r * 0.38, { rot, seed: x }), { fill: WHITE, w: thin * 1.4 });
+    const fx = cx + Math.sin(rot) * r, fy = cy - Math.cos(rot) * r;
+    line(cx, cy, fx, fy, thin);
+    inkPoly(rectPts(fx - 0.18 * r, fy - 0.18 * r, 0.36 * r, 0.36 * r), { fill: INK, w: 0 });
+  };
+  // outdoor AC unit on brackets, dripping
+  const wallAC = (x, y) => {
+    inkPoly(rectPts(x, y, 2.6 * u, 1.9 * u), { fill: WHITE, w: thin * 1.3 });
+    const fx = x + 1.75 * u, fy = y + 0.95 * u;
+    ink(ellPts(fx, fy, 0.68 * u, 0.68 * u, { seed: x + y }), { fill, w: thin });
+    line(fx - 0.6 * u, fy, fx + 0.6 * u, fy, thin * 0.7); line(fx, fy - 0.6 * u, fx, fy + 0.6 * u, thin * 0.7);
+    for (let i = 0; i < 4; i++) line(x + 0.25 * u, y + (0.35 + i * 0.4) * u, x + 0.9 * u, y + (0.35 + i * 0.4) * u, thin * 0.7);
+    line(x + 0.3 * u, y + 1.9 * u, x + 0.6 * u, y + 2.4 * u, thin); line(x + 2.3 * u, y + 1.9 * u, x + 2.0 * u, y + 2.4 * u, thin);
+    line(x + 2.5 * u, y + 1.9 * u, x + 2.55 * u, y + 1.9 * u + rand(1, 4) * u, thin * 0.6);
+  };
+  const wallACs = (n, x0, x1, yTop, yBot) => { for (let i = 0; i < n && yBot > yTop; i++) wallAC(rand(x0, x1 - 2.6 * u), rand(yTop, yBot)); };
+  const wallDishes = (n, x0, x1, yTop, yBot) => {
+    for (let i = 0; i < n && yBot > yTop; i++) {
+      const x = rand(x0, x1), y = rand(yTop, yBot);
+      line(x, y, x + 0.8 * u, y, thin * 1.4);
+      dish(x + 0.8 * u, y, rand(0.8, 1.2) * u, pick([-1, 1]));
+    }
+  };
+  // big rooftop cooling unit with fans on top
+  const roofAC = (x, roofY) => {
+    inkPoly(rectPts(x, roofY - 2.4 * u, 5 * u, 2.4 * u), { fill });
+    shade(x + 4 * u, roofY - 2.4 * u, u, 2.4 * u);
+    for (let i = 1; i < 8; i++) line(x + i * 0.55 * u, roofY - 2 * u, x + i * 0.55 * u, roofY - 0.4 * u, thin * 0.7);
+    for (const fx of [1.3, 3.5]) ink(ellPts(x + fx * u, roofY - 2.4 * u, 0.95 * u, 0.3 * u, { seed: x + fx }), { fill: INK, w: thin });
+  };
+  const roofStuff = (x0, x1, roofY, nAnt) => {
+    for (let i = 0; i < nAnt; i++) antenna(rand(x0 + u, x1 - u), roofY, rand(4, 9) * u);
+    if (x1 - x0 > 7 * u && chance(0.5)) roofAC(rand(x0 + u, x1 - 6 * u), roofY);
+    for (let i = 0, n = Math.random() * 3 | 0; i < n; i++) dish(rand(x0 + u, x1 - u), roofY, rand(1.1, 2.2) * u, pick([-1, 1]));
+    if (chance(0.3)) sittingCat(rand(x0 + 2 * u, x1 - 2 * u), roofY, u * 0.9, pick([-1, 1]));
+  };
+  // the odd things these shops sell, standing on the shelf at (x, y)
+  const oddThing = (kind, x, y, s, fg) => {
+    const ln = (x0, y0, x1, y1, w = thin * 1.3, col = fg) => { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); };
+    const blob = (cx, cy, rx, ry, f = WHITE) => ink(ellPts(cx, cy, rx, ry, { seed: cx + cy }), { fill: f, w: thin });
+    const dot = (cx, cy, r) => { ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill(); };
+    if (kind === 'fish') { inkPoly([[x - 0.8 * s, y - s], [x - 1.6 * s, y - 1.5 * s], [x - 1.6 * s, y - 0.5 * s]], { fill: WHITE, w: thin }); blob(x, y - s, 1.1 * s, 0.5 * s); dot(x + 0.6 * s, y - 1.1 * s, 0.12 * s); }
+    else if (kind === 'clock') { ln(x, y, x, y - 0.3 * s); blob(x, y - 1.3 * s, s, s); ln(x, y - 1.3 * s, x, y - 2 * s, thin, INK); ln(x, y - 1.3 * s, x + 0.55 * s, y - 1.2 * s, thin, INK); }
+    else if (kind === 'teeth') { for (const o of [-0.65, 0, 0.65]) { const a = x + o * s - 0.28 * s; inkPoly([[a, y - 1.3 * s], [a + 0.56 * s, y - 1.3 * s], [a + 0.56 * s, y - 0.3 * s], [a + 0.42 * s, y], [a + 0.3 * s, y - 0.45 * s], [a + 0.16 * s, y], [a, y - 0.3 * s]], { fill: WHITE, w: thin }); } }
+    else if (kind === 'head') { ln(x, y, x, y - 0.9 * s, thin * 2); blob(x, y - 1.7 * s, 0.6 * s, 0.8 * s); inkPoly(rectPts(x - 0.45 * s, y - 3.1 * s, 0.9 * s, 0.7 * s), { fill: '#8d877d', w: thin }); line(x - 0.75 * s, y - 2.4 * s, x + 0.75 * s, y - 2.4 * s, thin * 1.5); }
+    else if (kind === 'boot') inkPoly([[x - 0.5 * s, y - 2 * s], [x + 0.1 * s, y - 2 * s], [x + 0.1 * s, y - 0.7 * s], [x + 0.9 * s, y - 0.5 * s], [x + 0.9 * s, y], [x - 0.5 * s, y]], { fill: WHITE, w: thin });
+    else if (kind === 'bottle') { inkPoly([[x - 0.4 * s, y], [x - 0.4 * s, y - 1.3 * s], [x - 0.15 * s, y - 1.7 * s], [x - 0.15 * s, y - 2.3 * s], [x + 0.15 * s, y - 2.3 * s], [x + 0.15 * s, y - 1.7 * s], [x + 0.4 * s, y - 1.3 * s], [x + 0.4 * s, y]], { fill: WHITE, w: thin }); inkPoly(rectPts(x - 0.3 * s, y - 1.1 * s, 0.6 * s, 0.5 * s), { fill: INK, w: 0 }); }
+    else if (kind === 'key') { ctx.strokeStyle = fg; ctx.lineWidth = 0.22 * s; ctx.beginPath(); ctx.arc(x - 0.7 * s, y - s, 0.42 * s, 0, TAU); ctx.stroke(); ln(x - 0.3 * s, y - s, x + 1.1 * s, y - s, 0.22 * s); ln(x + 0.8 * s, y - s, x + 0.8 * s, y - 0.6 * s, 0.18 * s); ln(x + 1.05 * s, y - s, x + 1.05 * s, y - 0.7 * s, 0.18 * s); }
+    else if (kind === 'eye') { blob(x, y - s, s, 0.55 * s); dot(x + 0.1 * s, y - s, 0.28 * s); for (const o of [-0.6, 0, 0.6]) ln(x + o * s, y - 1.5 * s, x + o * 1.3 * s, y - 1.9 * s, thin); }
+    else if (kind === 'cat') sittingCat(x, y, 0.75 * s, x % 2 > 1 ? 1 : -1, WHITE);
+    else if (kind === 'hat') { inkPoly(rectPts(x - 0.55 * s, y - 1.8 * s, 1.1 * s, 1.6 * s), { fill: WHITE, w: thin }); inkPoly(rectPts(x - s, y - 0.3 * s, 2 * s, 0.3 * s), { fill: WHITE, w: thin }); inkPoly(rectPts(x - 0.55 * s, y - 0.75 * s, 1.1 * s, 0.3 * s), { fill: INK, w: 0 }); }
+    else { blob(x - 0.6 * s, y - s, 0.5 * s, 0.4 * s); blob(x + 0.6 * s, y - s, 0.5 * s, 0.4 * s); ln(x - 0.15 * s, y - 1.05 * s, x + 0.15 * s, y - 1.05 * s, thin, INK); ln(x - 1.1 * s, y - 1.1 * s, x - 1.5 * s, y - 1.4 * s); ln(x + 1.1 * s, y - 1.1 * s, x + 1.5 * s, y - 1.4 * s); }
+  };
+  // a strange little shop at street level, from x0 to x1
+  const shopFront = (x0, x1) => {
+    const sw = x1 - x0, v = u * (L.links ? 1.35 : 1); // bigger in the front row
+    if (sw < 5 * v) return;
+    const sh = 4.4 * v, lit = chance(0.35), bg = lit ? WHITE : INK, fg = lit ? INK : WHITE;
+    const dw = Math.min(2.2 * v, sw * 0.22), winW = sw - dw - 1.2 * v;
+    inkPoly(rectPts(x0, -sh, winW, sh - 0.7 * v), { fill: bg });
+    const n = Math.max(1, Math.floor(winW / (2.4 * v))), kinds = [pick(ODD_THINGS), pick(ODD_THINGS), pick(ODD_THINGS)];
+    for (let i = 0; i < n; i++) oddThing(kinds[i % 3], x0 + (i + 0.5) * winW / n, -0.9 * v, Math.min(0.85 * v, winW / n * 0.28), fg);
+    inkPoly(rectPts(x0 - 0.2 * v, -0.7 * v, winW + 0.4 * v, 0.7 * v), { fill });
+    const dx = x0 + winW + 0.6 * v;
+    inkPoly(rectPts(dx, -5 * v, dw, 5 * v), { fill });
+    inkPoly(rectPts(dx + dw * 0.2, -4.4 * v, dw * 0.6, 1.8 * v), { fill: INK, w: thin });
+    if (chance(0.5)) inkPoly(rectPts(dx + dw * 0.25, -2.3 * v, dw * 0.5, 0.6 * v), { fill: WHITE, w: thin * 0.6 }); // a note on the door
+    const style = pick(['stripes', 'stripes', 'dark', 'plain', 'none']);
+    if (style !== 'none') awning(x0 - 0.3 * v, x0 + winW + 0.3 * v, -sh + 1.4 * v, style);
+    signBoard(x0 + winW / 2, -sh - 2.4 * v, pick(SHOP_NAMES), 1.3 * v, chance(0.5), winW + u);
+    if (chance(0.45)) { // a sign hanging off a bracket
+      const hx = x1 - 0.2 * v, hy = -sh - 4.6 * v, ex = hx + 2.2 * v;
+      line(hx, hy, hx + 2.9 * v, hy, LW * 0.8);
+      line(hx, hy + 1.2 * v, hx + 1.6 * v, hy, thin);
+      line(ex - 0.5 * v, hy, ex - 0.5 * v, hy + 0.6 * v, thin * 0.8); line(ex + 0.5 * v, hy, ex + 0.5 * v, hy + 0.6 * v, thin * 0.8);
+      oddThing(pick(HANGING), ex, hy + 3 * v, 1.1 * v, INK);
+    }
+  };
+  const facadeCables = (n) => {
+    for (let i = 0; i < n; i++) { const y = -rand(0.15, 0.6) * h; cable(rand(0, w * 0.3), y, rand(w * 0.6, w), y + rand(-2, 2) * u, rand(1, 3) * u, thin * 0.9); }
+  };
+  const awning = (x0, x1, y, style = 'stripes') => {
+    const aw = [[x0, y - 2 * u], [x1, y - 2 * u], [x1 + 0.8 * u, y], [x0 - 0.8 * u, y]];
+    if (style === 'plain') for (let x = x0 - 0.3 * u; x < x1 + 0.6 * u; x += 1.1 * u) ink(ellPts(x, y, 0.55 * u, 0.4 * u, { seed: x }), { fill: WHITE, w: thin });
+    inkPoly(aw, { fill: style === 'dark' ? INK : WHITE });
+    if (style === 'stripes') {
+      ctx.save(); ctx.beginPath(); polyClip(aw)(); ctx.clip();
+      ctx.fillStyle = INK; for (let x = x0 - u; x < x1 + u; x += 2 * u) ctx.fillRect(x, y - 2.5 * u, u, 3 * u);
+      ctx.restore();
+      inkPoly(aw, {});
+    }
+  };
+
+  for (const s of b.stacks) if (s.vent && !L.flat) {
+    inkPoly(rectPts(s.x - 0.5 * u, s.y, u, -s.y - h), { fill });
+    inkPoly(rectPts(s.x - 0.75 * u, s.y - 0.5 * u, 1.5 * u, 0.6 * u), { fill, w: thin * 1.3 });
+  }
+
+  const chimney = (s, roofY) => {
+    const pts = [[s.x - s.w * 0.65, 0], [s.x - s.w * 0.5, s.y], [s.x + s.w * 0.5, s.y], [s.x + s.w * 0.65, 0]];
+    inkPoly(pts, { fill });
+    hatch([polyClip(pts), () => ctx.rect(s.x + s.w * 0.1, s.y, s.w, -s.y)], s.x, s.y / 2, -s.y / 2 + s.w, 0.9, LW * 1.1, thin, s.x);
+    for (const f of [0.03, 0.08, 0.45, 0.7]) line(s.x - s.w * 0.55, s.y * (1 - f), s.x + s.w * 0.55, s.y * (1 - f), thin * 1.4);
+    for (let y = s.y + u; y < roofY; y += 1.2 * u) line(s.x - s.w * 0.15, y, s.x + s.w * 0.15, y, thin * 0.8); // ladder rungs
+  };
+
+  if (L.flat) {
+    ctx.fillStyle = fill;
+    if (type === 'deco') { ctx.fillRect(0, -h * 0.62, w, h * 0.62); ctx.fillRect(w * 0.14, -h * 0.84, w * 0.72, h * 0.23); ctx.fillRect(w * 0.27, -h, w * 0.46, h * 0.17); ctx.fillRect(w * 0.48, -h - 14 * u, w * 0.04, 14 * u); }
+    else if (type === 'plant') { for (const s of b.stacks) if (!s.steam) ctx.fillRect(s.x - s.w / 2, s.y, s.w, -s.y); for (const t of b.towers) { ctx.beginPath(); polyClip(towerPts(t.x, t.h))(); ctx.fill(); } ctx.fillRect(w * 0.55, -h, w * 0.23, h); }
+    else if (type === 'factory') { ctx.fillRect(0, -h, w * 0.7, h); ctx.fillRect(w * 0.72, -h * 0.8, w * 0.28, h * 0.8); for (const s of b.stacks) ctx.fillRect(s.x - s.w / 2, s.y, s.w, -s.y); }
+    else { ctx.fillRect(0, -h, w, h); if (h0(seed) > 0) ctx.fillRect(w * 0.5, -h - 12 * u, 0.6 * u, 12 * u); }
+    return;
+  }
+
+  if (type === 'tower') {
+    inkPoly(rectPts(0, -h, w, h), { fill });
+    shade(w * 0.8, -h, w * 0.2, h);
+    const cols = Math.max(2, Math.floor((w - 2 * u) / (2.6 * u))), cw = (w - 2 * u) / cols;
+    for (let i = 0; i < cols; i++) for (let j = 0, y = -h + 2.5 * u; y < -12.5 * u; j++, y += 3.2 * u) win(u + i * cw + cw * 0.2, y, cw * 0.6, 2 * u, i * 13.1 + j * 7.7);
+    dirt(0, w, -h);
+    wallACs(2 + (Math.random() * 5 | 0), 0.3 * u, w * 0.95, -h + 3 * u, -12 * u);
+    wallDishes(Math.random() * 3 | 0, 0.5 * u, w * 0.8, -h + 4 * u, -12 * u);
+    shopFront(0.4 * u, w * 0.6);
+    inkPoly(rectPts(w * 0.66, -4.5 * u, w * 0.2, 4.5 * u), { fill: INK });
+    inkPoly(rectPts(w * 0.62, -5.3 * u, w * 0.28, 0.8 * u), { fill });
+    if (chance(0.3)) { // vertical hotel sign
+      const sx = w - 0.5 * u, letters = pick(['HOTELL', 'BIO', 'BAR', 'DANS']);
+      inkPoly(rectPts(sx, -h * 0.75, 2.6 * u, letters.length * 2.2 * u + u), { fill: INK, w: thin * 1.5 });
+      ctx.font = `bold ${1.7 * u}px "Trebuchet MS", Verdana, sans-serif`; ctx.fillStyle = WHITE; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      [...letters].forEach((ch, i) => ctx.fillText(ch, sx + 1.3 * u, -h * 0.75 + 1.6 * u + i * 2.2 * u));
+    }
+    facadeCables(1);
+    inkPoly(rectPts(-0.4 * u, -h - u, w + 0.8 * u, u), { fill });
+    const r = h0(seed + 1);
+    if (r > 0.3) {
+      line(w * 0.5, -h - u, w * 0.5, -h - 16 * u, LW);
+      for (const f of [5, 9, 12]) line(w * 0.5 - (16 - f) * 0.15 * u, -h - f * u, w * 0.5 + (16 - f) * 0.15 * u, -h - f * u, thin * 1.4);
+    } else if (r < -0.3) { // water tower
+      const x = w * 0.6, y = -h - u;
+      for (const lx of [x - 1.6 * u, x + 1.6 * u]) line(lx, y, lx, y - 4 * u, thin * 1.5);
+      inkPoly(rectPts(x - 2.2 * u, y - 9 * u, 4.4 * u, 5 * u), { fill });
+      shade(x + 0.8 * u, y - 9 * u, 1.4 * u, 5 * u);
+      inkPoly([[x - 2.6 * u, y - 9 * u], [x, y - 11.5 * u], [x + 2.6 * u, y - 9 * u]], { fill });
+    } else {
+      inkPoly(rectPts(w * 0.2, -h - 5 * u, w * 0.35, 4 * u), { fill });
+      shade(w * 0.45, -h - 5 * u, w * 0.1, 4 * u);
+    }
+    roofStuff(w * 0.05, w * 0.95, -h - u, 1 + (Math.random() * 2 | 0));
+  } else if (type === 'slab') {
+    inkPoly(rectPts(0, -h, w, h), { fill });
+    shade(w * 0.86, -h, w * 0.14, h);
+    const fh = 3.6 * u, units = Math.floor((w - u) / (5 * u)), uw = (w - u) / units;
+    for (let j = 0, y = -h + 1.5 * u; y < -3.6 * fh; j++, y += fh) {
+      line(0, y + fh, w, y + fh, thin);
+      for (let i = 0; i < units; i++) {
+        const x = u * 0.5 + i * uw;
+        win(x + 0.4 * u, y + 0.5 * u, 1.8 * u, 1.9 * u, i * 5.3 + j * 3.1);
+        inkPoly(rectPts(x + 2.6 * u, y + 1.5 * u, 2 * u, 1.6 * u), { fill });
+        hatch([() => ctx.rect(x + 2.6 * u, y + 1.5 * u, 2 * u, 1.6 * u)], x + 3.6 * u, y + 2.3 * u, 2 * u, 1.57, LW * 0.9, thin, i + j);
+        if (h0(seed + i * 3 + j) > 0.85) cable(x + 2.6 * u, y + 0.6 * u, x + 4.6 * u, y + 0.6 * u, 0.8 * u, thin * 0.8); // washing line
+        else if (h0(seed + i * 5 + j * 2) > 0.75) dish(x + 3.6 * u, y + 1.5 * u, 0.9 * u, pick([-1, 1])); // dish on the balcony
+      }
+    }
+    dirt(0, w, -h);
+    wallACs(3 + (Math.random() * 6 | 0), 0.3 * u, w * 0.95, -h + 2 * u, -13 * u);
+    shopFront(1.4 * u, w * 0.4);
+    inkPoly(rectPts(w * 0.43, -5 * u, w * 0.14, 5 * u), { fill: INK });
+    shopFront(w * 0.6, w - 1.6 * u);
+    drain(0.4 * u, -h); drain(w - 0.9 * u, -h);
+    inkPoly(rectPts(w * 0.65, -h - 4 * u, 5 * u, 4 * u), { fill });
+    roofStuff(0, w * 0.6, -h, 2 + (Math.random() * 4 | 0));
+  } else if (type === 'tenement') {
+    inkPoly(rectPts(0, -h, w, h), { fill });
+    shade(w * 0.82, -h, w * 0.18, h);
+    for (const s of b.stacks) inkPoly(rectPts(s.x - 0.8 * u, s.y, 1.6 * u, -s.y - h), { fill });
+    inkPoly(rectPts(-0.8 * u, -h - 1.2 * u, w + 1.6 * u, 1.4 * u), { fill });
+    for (let x = 0; x < w; x += 1.2 * u) line(x, -h + 0.2 * u, x, -h + 0.8 * u, thin * 1.5);
+    const cols = Math.max(2, Math.floor((w - 2 * u) / (3.4 * u))), cw = (w - 2 * u) / cols;
+    for (let j = 0, y = -h + 2.5 * u; y < -13 * u; j++, y += 4.2 * u) {
+      for (let i = 0; i < cols; i++) {
+        const x = u + i * cw + cw * 0.25;
+        win(x, y, cw * 0.5, 2.6 * u, i * 9.7 + j * 4.3);
+        line(x - 0.3 * u, y - 0.3 * u, x + cw * 0.5 + 0.3 * u, y - 0.3 * u, LW * 1.3);
+      }
+      if (j % 2 === 0) { // fire escape
+        const fx = w * 0.6, fw = w * 0.36, py = y + 3.2 * u;
+        line(fx, py, fx + fw, py, LW);
+        line(fx, py - 1.2 * u, fx + fw, py - 1.2 * u, thin);
+        for (let x = fx; x <= fx + fw; x += 0.8 * u) line(x, py, x, py - 1.2 * u, thin * 0.8);
+        line(fx + fw * 0.15, py, fx + fw * 0.85, py + 8.4 * u, thin * 1.5);
+        if (h0(seed + j) > 0.6) sittingCat(fx + fw * 0.6, py, u * 0.7, -1);
+      }
+    }
+    dirt(0, w, -h, 0, 1.2);
+    drain(0.3 * u, -h);
+    pipeLine([[w * 0.45, -2.6 * u], [w * 0.45, -7 * u], [w * 0.58, -7 * u]], 0.4 * u, fill); // gas riser
+    facadeCables(2);
+    wallACs(1 + (Math.random() * 4 | 0), 0.3 * u, w * 0.6, -h + 3 * u, -12 * u);
+    wallDishes(Math.random() * 2 | 0, 0.5 * u, w * 0.5, -h + 3 * u, -12 * u);
+    shopFront(1.2 * u, w - 0.8 * u);
+    roofStuff(0, w, -h - 1.2 * u, 1 + (Math.random() * 3 | 0));
+  } else if (type === 'shop') {
+    inkPoly(rectPts(0, -h, w, h), { fill });
+    shade(w * 0.85, -h, w * 0.15, h);
+    inkPoly(rectPts(-0.5 * u, -h - u, w + u, u), { fill });
+    for (let y = -h + 1.5 * u; y < -13 * u; y += 4 * u) {
+      for (let x = 1.2 * u; x + 2 * u < w - u; x += 3.6 * u) {
+        win(x, y, 2 * u, 2.4 * u, x + y);
+        inkPoly(rectPts(x - 0.2 * u, y + 2.5 * u, 2.4 * u, 0.6 * u), { fill, w: thin * 1.2 });
+        for (let f = 0; f < 3; f++) ink(ellPts(x + (0.3 + f * 0.7) * u, y + 2.3 * u, 0.35 * u, 0.3 * u, { seed: x + f }), { fill: f % 2 ? INK : WHITE, w: thin });
+      }
+    }
+    dirt(0, w, -h, 0, 1.2);
+    if (h > 12 * u) wallACs(1 + (Math.random() * 2 | 0), 0.3 * u, w * 0.9, -h + 2 * u, -11 * u);
+    shopFront(0.6 * u, w - 1.4 * u);
+    drain(w - 0.8 * u, -h);
+    roofStuff(0, w, -h - u, Math.random() * 3 | 0);
+  } else if (type === 'workshop') {
+    // low, corrugated, oily
+    const body = b.roof === 'shed' ? [[0, 0], [0, -h], [w, -h - 2.8 * u], [w, 0]]
+      : b.roof === 'gable' ? [[0, 0], [0, -h], [w / 2, -h - 3.5 * u], [w, -h], [w, 0]]
+      : [[0, 0], [0, -h], ...Array.from({ length: 3 }, (_, i) => [[i * w / 3, -h - 2.6 * u], [(i + 1) * w / 3, -h]]).flat(), [w, 0]];
+    inkPoly(body, { fill });
+    ctx.save(); ctx.beginPath(); polyClip(body)(); ctx.clip();
+    ctx.strokeStyle = INK; ctx.lineWidth = thin * 0.5; ctx.globalAlpha = 0.6;
+    ctx.beginPath(); for (let x = 0.4 * u; x < w; x += 0.7 * u) { ctx.moveTo(x, -h - 4 * u); ctx.lineTo(x, 0); } ctx.stroke();
+    ctx.restore();
+    if (b.roof === 'saw') for (let i = 0; i < 3; i++) hatch([polyClip([[i * w / 3, -h], [i * w / 3, -h - 2.6 * u], [i * w / 3 + w * 0.1, -h - 1.8 * u], [i * w / 3 + w * 0.1, -h]])], i * w / 3, -h - u, 3 * u, -1.2, LW * 0.8, thin, seed + i);
+    else line(-0.6 * u, -h + 0.2 * u, b.roof === 'shed' ? w + 0.6 * u : w / 2, b.roof === 'shed' ? -h - 3 * u : -h - 3.6 * u, LW * 1.3);
+    if (b.roof === 'gable') line(w / 2, -h - 3.6 * u, w + 0.6 * u, -h + 0.2 * u, LW * 1.3);
+    shade(w * 0.86, -h - 3 * u, w * 0.14, h + 3 * u);
+    // a big roll-up door, sometimes half open on a dark interior
+    const dw = Math.min(w * 0.45, 8 * u), dh = Math.min(h * 0.55, 7 * u), dx = w * 0.07;
+    inkPoly(rectPts(dx, -dh, dw, dh), { fill });
+    const open = chance(0.5) ? dh * rand(0.3, 0.6) : 0;
+    for (let y = -dh + 0.5 * u; y < -open; y += 0.5 * u) line(dx, y, dx + dw, y, thin * 0.7);
+    if (open) inkPoly(rectPts(dx, -open, dw, open), { fill: INK, w: thin });
+    inkPoly(rectPts(w * 0.62, -h * 0.62, w * 0.22, h * 0.25), { fill: WHITE, w: thin * 1.3 });
+    line(w * 0.73, -h * 0.62, w * 0.73, -h * 0.37, thin); line(w * 0.62, -h * 0.495, w * 0.84, -h * 0.495, thin);
+    inkPoly(rectPts(w * 0.62, -4.5 * u, 2 * u, 4.5 * u), { fill });
+    dirt(0, w, -h, 0, 1.6);
+    signBoard(w * 0.42, -h + 1.8 * u, pick(WORKSHOP_NAMES), 1.4 * u, chance(0.5), w * 0.8);
+    if (chance(0.5)) wallAC(w * 0.62, -h * 0.32 - 2 * u);
+    pipeLine([[w - 0.6 * u, -h - 0.5 * u], [w - 0.6 * u, -0.6 * u]], 0.45 * u, fill);
+    // junk out front: oil drums, a stack of tyres, gas bottles
+    for (let i = 0, n = 1 + (Math.random() * 3 | 0); i < n; i++) {
+      const x = rand(dx + dw + 0.2 * u, w * 0.6), col = pick([PAPER, INK, '#8d877d']);
+      inkPoly(rectPts(x, -2.4 * u, 1.6 * u, 2.4 * u), { fill: col, w: thin * 1.2 });
+      for (const f of [0.3, 0.7]) line(x, -2.4 * u * f, x + 1.6 * u, -2.4 * u * f, thin);
+      ink(ellPts(x + 0.8 * u, -2.4 * u, 0.8 * u, 0.25 * u, { seed: x }), { fill: col, w: thin });
+    }
+    if (chance(0.6)) { const x = rand(w * 0.85, w * 1.0); for (let i = 0; i < 2 + (Math.random() * 3 | 0); i++) ink(ellPts(x, -0.4 * u - i * 0.75 * u, 1.1 * u, 0.38 * u, { seed: x + i }), { fill: INK, w: thin }); }
+    if (chance(0.5)) for (let i = 0; i < 2; i++) { const x = w * 0.55 + i * 0.8 * u; inkPoly([[x, 0], [x, -2.6 * u], [x + 0.3 * u, -3 * u], [x + 0.6 * u, -2.6 * u], [x + 0.6 * u, 0]], { fill: i ? INK : WHITE, w: thin }); }
+  } else if (type === 'plant') {
+    for (const s of b.stacks) if (!s.steam) chimney(s, -h);
+    for (const t of b.towers) {
+      const pts = towerPts(t.x, t.h);
+      inkPoly(pts, { fill });
+      hatch([polyClip(pts), () => ctx.rect(t.x + t.h * 0.06, -t.h - u, t.h, t.h + 2 * u)], t.x + t.h * 0.15, -t.h / 2, t.h * 0.7, 1.1, LW * 1.2, thin, t.x);
+      ink(ellPts(t.x, -t.h, t.h * 0.2, t.h * 0.035, { seed: t.x }), { fill });
+      for (let i = -6; i < 6; i++) line(t.x + i * t.h * 0.042, 0, t.x + (i + 0.5) * t.h * 0.042, -t.h * 0.05, thin); // the open lattice at the foot
+    }
+    const bx = w * 0.55, bw = w * 0.23;
+    pipeLine([[b.towers[1].x, -h * 0.25], [bx + u, -h * 0.25]], 1.2 * u, fill);
+    pipeLine([[b.towers[0].x, -h * 0.12], [b.towers[0].x, -h * 0.4], [bx + u, -h * 0.4]], 0.9 * u, fill);
+    inkPoly([[bx, 0], [bx, -h], [bx + bw * 0.6, -h], [bx + bw * 0.6, -h - 3 * u], [bx + bw, -h - 3 * u], [bx + bw, 0]], { fill });
+    shade(bx + bw * 0.78, -h - 3 * u, bw * 0.22, h + 3 * u);
+    for (let x = bx + u; x + u < bx + bw * 0.75; x += 2.2 * u) inkPoly(rectPts(x, -h + 2.5 * u, 1.1 * u, h * 0.45), { fill: WHITE, w: thin * 1.3 });
+    dirt(bx, bx + bw, -h - 3 * u, 0, 1.3);
+    // coal heap and the conveyor feeding the boiler house
+    const c0 = [w * 0.9, -4.5 * u], c1 = [bx + bw * 0.85, -h - 3 * u];
+    line(c0[0], c0[1], c1[0], c1[1], LW);
+    line(c0[0] + u, c0[1] + 0.8 * u, c1[0] + u, c1[1] + 0.8 * u, thin * 1.4);
+    for (let t = 0.05; t < 1; t += 0.08) { const x = c0[0] + (c1[0] - c0[0]) * t, y = c0[1] + (c1[1] - c0[1]) * t; line(x, y, x + u, y + 0.8 * u, thin); }
+    const heap = [];
+    for (let i = 0; i <= 10; i++) { const t = i / 10; heap.push([w * 0.78 + t * w * 0.24, -Math.sin(Math.PI * t) * 5 * u * (1 + 0.1 * h0(seed + i))]); }
+    inkPoly(heap, { fill: '#3a3532' });
+  } else if (type === 'factory') {
+    const hw = w * 0.7, n = Math.max(3, Math.round(hw / (4 * u))), tw = hw / n, th = 2.6 * u;
+    for (const s of b.stacks) chimney(s, -h - th); // chimneys behind the hall
+    const pts = [[0, 0], [0, -h]];
+    for (let i = 0; i < n; i++) pts.push([i * tw, -h - th], [(i + 1) * tw, -h]);
+    pts.push([hw, 0]);
+    inkPoly(pts, { fill });
+    for (let i = 0; i < n; i++) hatch([polyClip([[i * tw, -h], [i * tw, -h - th], [i * tw + tw * 0.35, -h - th * 0.65], [i * tw + tw * 0.35, -h]])], i * tw, -h - th / 2, th, -1.2, LW * 0.8, thin, seed + i);
+    line(0, -h, hw, -h, thin * 1.5);
+    for (let x = 1.5 * u; x + 1.8 * u < hw - u; x += 3 * u) inkPoly(rectPts(x, -h * 0.85, 1.8 * u, h * 0.3), { fill: WHITE, w: thin * 1.5 });
+    dirt(0, hw, -h, 0, 1.3);
+    const dw = Math.min(6 * u, hw * 0.25), dx = hw * 0.55;
+    inkPoly(rectPts(dx, -h * 0.42, dw, h * 0.42), { fill });
+    for (let k = 1; k < 6; k++) line(dx, -h * 0.42 * k / 6, dx + dw, -h * 0.42 * k / 6, thin);
+    // storage tank
+    const tx = hw + 1.5 * u, tW = w - hw - 1.5 * u, tH = Math.min(h * 0.9, 12 * u), cx = tx + tW / 2, ery = tW * 0.15;
+    inkPoly(rectPts(tx, -tH, tW, tH), { fill });
+    shade(cx + tW * 0.15, -tH, tW * 0.35, tH);
+    ink(ellPts(cx, -tH, tW / 2, ery, { seed }), { fill });
+    for (const f of [0.35, 0.7]) stroke(tx, -tH * f, cx, -tH * f + ery * 2, tx + tW, -tH * f, thin * 1.5, seed + f);
+    // plumbing between the hall and the tank
+    pipeLine([[hw * 0.25, -h * 0.3], [tx + tW * 0.3, -h * 0.3]], 0.9 * u, fill);
+    for (let x = hw * 0.3; x < tx; x += 2.5 * u) inkPoly(rectPts(x, -h * 0.3 - 0.75 * u, 0.4 * u, 1.5 * u), { fill, w: thin });
+    pipeLine([[hw * 0.85, -h - th], [hw * 0.85, -h - th - 3 * u], [cx, -h - th - 3 * u], [cx, -tH - ery]], 0.7 * u, fill);
+    pipeLine([[hw - 0.5 * u, -2 * u], [hw + 0.8 * u, -2 * u], [hw + 0.8 * u, -h * 0.55], [tx, -h * 0.55]], 0.5 * u, fill);
+    const vx = hw * 0.62, vy = -h * 0.3 - 1.6 * u;
+    line(vx, -h * 0.3, vx, vy, thin * 1.4);
+    ink(ellPts(vx, vy, 0.9 * u, 0.9 * u, { seed: vx }), { w: thin * 1.5 });
+    line(vx - 0.9 * u, vy, vx + 0.9 * u, vy, thin); line(vx, vy - 0.9 * u, vx, vy + 0.9 * u, thin);
+    facadeCables(1);
+  } else {
+    // stepped art-deco tower with a spire
+    let y = 0;
+    for (const [fw, fh] of [[1, 0.62], [0.72, 0.22], [0.46, 0.16]]) {
+      const tw = w * fw, th = h * fh, x = (w - tw) / 2;
+      inkPoly(rectPts(x, y - th, tw, th), { fill });
+      shade(x + tw * 0.78, y - th, tw * 0.22, th);
+      const cols = Math.max(2, Math.floor(tw / (2.4 * u)));
+      for (let i = 1; i < cols; i++) {
+        const px = x + i * tw / cols;
+        const clear = fw === 1 ? 12 * u : u;
+        line(px, y - th + u, px, y - clear, thin);
+        for (let j = 0, wy = y - th + 1.6 * u; wy < y - clear - 2 * u; j++, wy += 3 * u) win(px - tw / cols * 0.5 - 0.45 * u, wy, 0.9 * u, 1.7 * u, i * 3.3 + j * 7.1 + fw);
+      }
+      dirt(x, x + tw, y - th, y);
+      y -= th;
+      inkPoly(rectPts(x - 0.5 * u, y - 0.8 * u, tw + u, 0.8 * u), { fill });
+      y -= 0.8 * u;
+      if (fw < 1) roofStuff(x, x + tw * 0.3, y + 0.8 * u, 1);
+    }
+    inkPoly([[w / 2 - u, y], [w / 2, y - 14 * u], [w / 2 + u, y]], { fill });
+    wallACs(2 + (Math.random() * 3 | 0), 0.3 * u, w * 0.95, -h * 0.55, -11 * u);
+    shopFront(0.6 * u, w * 0.48);
+    shopFront(w * 0.52, w - 0.6 * u);
+  }
+}
+
+// hyperboloid outline of a cooling tower standing on y = 0
+function towerPts(cx, th) {
+  const L = [], R = [];
+  for (let i = 0; i <= 10; i++) {
+    const t = i / 10, v = 1 - t, hw = (v * v * 0.27 + 2 * v * t * 0.13 + t * t * 0.2) * th, y = -(2 * v * t * 0.58 + t * t) * th;
+    L.push([cx - hw, y]); R.unshift([cx + hw, y]);
+  }
+  return [...L, ...R];
+}
+
+// ---------- utility poles ----------
+
+function makePole(x) {
+  const U = B * 0.9, it = { x, y: H + B, len: 0, sv: -SPEED * POLE_F, kind: 'pole', U };
+  it.attach = [[-3, -29.5], [-1.4, -29.5], [1.4, -29.5], [3, -29.5], [-2, -26.5], [2, -26.5]].map(([a, b]) => [4 * U + a * U, b * U]);
+  it.drops = [];
+  for (let i = 0, n = 1 + (Math.random() * 3 | 0); i < n; i++) it.drops.push({ a: (Math.random() * 6) | 0, dx: rand(-16, 12) * U, h: rand(15, 45) * B, sag: rand(1, 3) * U });
+  const transformer = chance(0.4), poster = chance(0.5);
+  it.sprite = makeSprite(8 * U, 33 * U, B, () => {
+    const x = 4 * U, thin = LW * 0.45;
+    inkPoly([[x - 0.45 * U, 0], [x - 0.3 * U, -31 * U], [x + 0.3 * U, -31 * U], [x + 0.45 * U, 0]], { fill: PAPER });
+    shadeRect(x + 0.05 * U, -31 * U, 0.4 * U, 31 * U, x);
+    for (let y = -3 * U; y > -24 * U; y -= 1.6 * U) line(x - 0.6 * U, y, x - 0.3 * U, y, thin * 1.3); // climbing steps
+    for (const [yy, hw] of [[-29.5, 3.4], [-26.5, 2.4]]) {
+      inkPoly(rectPts(x - hw * U, yy * U, hw * 2 * U, 0.5 * U), { fill: PAPER, w: thin * 1.5 });
+      line(x - hw * 0.6 * U, yy * U + 0.5 * U, x, yy * U + 2.2 * U, thin);
+      line(x + hw * 0.6 * U, yy * U + 0.5 * U, x, yy * U + 2.2 * U, thin);
+    }
+    for (const [ax, ay] of it.attach) inkPoly(rectPts(ax - 0.2 * U, ay - 0.1 * U, 0.4 * U, 0.8 * U), { fill: WHITE, w: thin });
+    if (transformer) {
+      ink(ellPts(x + 1.4 * U, -21 * U, 1.1 * U, 1.8 * U, { seed: x }), { fill: PAPER, w: LW * 0.8 });
+      shadeRect(x + 1.6 * U, -23 * U, B, 4 * U, x + 1);
+      line(x + 0.3 * U, -20 * U, x + 0.5 * U, -20 * U, LW);
+    }
+    if (poster) {
+      inkPoly(rectPts(x - 0.8 * U, -9 * U, 1.6 * U, 2 * U), { fill: WHITE, w: thin });
+      for (let i = 0; i < 3; i++) line(x - 0.5 * U, -8.5 * U + i * 0.5 * U, x + 0.5 * U, -8.5 * U + i * 0.5 * U, thin * 0.7);
+    }
+  });
+  return it;
+}
+
+// ---------- streams: things spawned past the right edge that drift left ----------
+
+function makeStream(gap, cursorSv, make) {
+  const s = { items: [], gap, cursorSv, make, cursor: -30 * B };
+  fillStream(s);
+  return s;
+}
+function fillStream(s) {
+  while (s.cursor < W + 30 * B) {
+    const it = s.make(s.cursor);
+    s.items.push(it);
+    s.cursor += (it.len || 0) + rand(s.gap[0], s.gap[1]) * B;
+  }
+}
+function updateStream(s, dt) {
+  s.cursor += s.cursorSv * dt;
+  for (const it of s.items) it.x += it.sv * dt;
+  s.items = s.items.filter((it) => it.x > -40 * B);
+  fillStream(s);
+}
+
+// ---------- smoke ----------
+
+function updateSmoke(dt) {
+  for (const lay of layers) {
+    const u = B * lay.L.s;
+    for (const b of lay.items) {
+      for (const s of b.stacks) {
+        const x = b.x + s.x;
+        if ((s.t -= dt) > 0 || x < -20 * B || x > W + 20 * B) continue;
+        s.t = (s.small ? rand(0.35, 0.7) : s.steam ? rand(0.2, 0.32) : rand(0.12, 0.22)) / (lay.L.s * lay.L.s); // distant chimneys puff less often
+        lay.puffs.push({ x: x + rand(-0.2, 0.2) * s.w, y: lay.base + s.y, r: s.w * (s.steam ? 0.3 : 0.65), vx: rand(0.8, 1.8) * u * (s.steam ? 0.6 : 1), vy: -rand(1.5, 2.8) * u,
+          grow: (s.small ? 0.7 : s.steam ? 1.4 : 1.3) * u, age: 0, life: s.small ? rand(3.5, 5.5) : rand(6, 10), dark: s.dark, seed: rand(0, 1000) });
+      }
+    }
+    for (const p of lay.puffs) { p.age += dt; p.x += (p.vx - SPEED * lay.L.f) * dt; p.y += p.vy * dt * (1 - p.age / p.life * 0.6); p.r += p.grow * dt; }
+    lay.puffs = lay.puffs.filter((p) => p.age < p.life && p.x > -30 * B);
+  }
+}
+
+// puffs are pre-drawn in a few sizes and shapes (tracing hundreds of ink outlines every frame is too slow)
+const PUFF_SIZES = [8, 16, 32, 64, 128], PUFF_SHAPES = 4;
+let puffSprites;
+function buildPuffSprites() {
+  const kinds = { flat: ['#bdb9b2', false], light: [PAPER, true], dark: ['#5f5a55', true] };
+  puffSprites = {};
+  for (const [name, [fill, outline]] of Object.entries(kinds)) {
+    puffSprites[name] = PUFF_SIZES.map((r) => Array.from({ length: PUFF_SHAPES }, (_, v) => {
+      const pad = r * 0.25 + 2, size = 2 * (r + pad);
+      return { r, size, cv: offscreen(size, size, () => ink(ellPts(r + pad, r + pad, r, r * 0.85, { lump: 0.12, seed: v * 17.3 }), { fill, w: outline ? LW * 0.55 : 0 })) };
+    }));
+  }
+}
+
+function drawSmoke(lay) {
+  for (const p of lay.puffs) {
+    const set = puffSprites[lay.L.flat ? 'flat' : p.dark ? 'dark' : 'light'];
+    let i = 0; while (i < PUFF_SIZES.length - 1 && PUFF_SIZES[i] < p.r) i++;
+    const spr = set[i][(p.seed | 0) % PUFF_SHAPES], k = p.r / spr.r, size = spr.size * k;
+    ctx.globalAlpha = Math.min(1, p.age * 3) * Math.min(1, 2 - 2 * p.age / p.life);
+    ctx.drawImage(spr.cv, p.x - size / 2, p.y - size / 2, size, size);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ---------- setup ----------
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
+  c.width = W * dpr; c.height = H * dpr;
+  B = H * 0.01; LW = B * 0.3; SPEED = 6 * B;
+
+  buildPuffSprites();
+  layers = LAYER_DEFS.map((L) => ({ L, base: H * L.base, items: [], puffs: [], cursor: -rand(0, 20) * B * L.s }));
+  for (const lay of layers) while (lay.cursor < W + 10 * B) spawnBuilding(lay);
+  for (let i = 0; i < 120; i++) updateSmoke(0.05);
+
+  streams = { poles: makeStream([14, 24], -SPEED * POLE_F, makePole) };
+}
+
+// pipes and cables across the alleys between neighbouring front buildings
+function drawLinks(lay) {
+  const items = lay.items;
+  for (let i = 0; i + 1 < items.length; i++) {
+    const a = items[i], b = items[i + 1], u = a.u, x0 = a.x + a.w, x1 = b.x, top = Math.min(a.h, b.h) * 0.92;
+    if (x1 - x0 < 0.5 * u) continue;
+    for (const l of a.links) {
+      const y0 = lay.base - l.y0 * top, y1 = lay.base - l.y1 * top;
+      if (!l.pipe) { cable(x0, y0, x1, y1, l.sag, LW * 0.5); continue; }
+      const jx = x0 + (x1 - x0) * l.jog;
+      pipeLine([[x0 - 0.6 * u, y0], [jx, y0], [jx, y1], [x1 + 0.6 * u, y1]], l.d);
+      ctx.fillStyle = PAPER; ctx.strokeStyle = INK; ctx.lineWidth = LW * 0.5;
+      for (const [fx, fy] of [[x0 + 0.4 * u, y0], [x1 - 0.4 * u, y1]]) { ctx.beginPath(); ctx.rect(fx - 0.25 * u, fy - l.d * 0.9, 0.5 * u, l.d * 1.8); ctx.fill(); ctx.stroke(); }
+    }
+  }
+}
+
+function drawWires() {
+  const poles = streams.poles.items;
+  poles.forEach((p, i) => {
+    const q = poles[i + 1];
+    if (q) for (const [ax, ay] of p.attach) cable(p.x + ax, p.y + ay, q.x + ax, q.y + ay, 2.5 * B);
+    for (const d of p.drops) { const [ax, ay] = p.attach[d.a]; cable(p.x + ax, p.y + ay, p.x + 4 * p.U + d.dx, H - d.h, d.sag); }
+  });
+}
+
+// ---------- frame ----------
+
+function update(time, dt) {
+  for (const lay of layers) {
+    const dx = SPEED * lay.L.f * dt;
+    for (const b of lay.items) b.x -= dx;
+    lay.cursor -= dx;
+    lay.items = lay.items.filter((b) => b.x + b.w + 5 * B > 0);
+    while (lay.cursor < W + 10 * B) spawnBuilding(lay);
+  }
+  updateSmoke(dt);
+  for (const s of Object.values(streams)) updateStream(s, dt);
+}
+
+function frame(time) {
+  boil = Math.floor(time * 9);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = SKY; ctx.fillRect(0, 0, W, H);
+  layers.forEach((lay, i) => {
+    for (const b of lay.items) blit(b.sprite, b.x, lay.base);
+    // fill in under each layer, so nearer gaps show a solid mass of town rather than floating buildings
+    if (lay.base < H) { ctx.fillStyle = lay.L.fill; ctx.fillRect(0, lay.base, W, H - lay.base); }
+    if (lay.L.links) drawLinks(lay);
+    drawSmoke(lay);
+    if (i === layers.length - 2) {
+      for (const it of streams.poles.items) blit(it.sprite, it.x, it.y);
+      drawWires();
+    }
+  });
+
+  const v = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.15)');
+  ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+}
+
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const time = now / 1000;
+  update(time, dt);
+  frame(time);
+  requestAnimationFrame(loop);
+}
+
+addEventListener('resize', resize);
+resize();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

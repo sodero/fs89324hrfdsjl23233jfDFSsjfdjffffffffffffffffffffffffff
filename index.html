@@ -280,17 +280,22 @@ const LAYER_DEFS = [
 ];
 const WORKSHOP_NAMES = ['VERKSTAD', 'SVETS & SMIDE', 'BILVERKSTAD', 'PLÅTSLAGERI', 'RÖRMOKERI', 'GJUTERI', 'MEK. VERKSTAD', 'DÄCK',
   'SKROT', 'LACKERING', 'SNICKERI', 'MOTORER', 'FJÄDRAR & BULTAR', 'OLJA', 'SLIPERI', 'KYLMONTAGE'];
-const SHOP_NAMES = ['BEGAGNADE SYMASKINER', 'TANDTEKNIKER', 'KONSERVATOR', 'PERUKER & POSTISCHER', 'DOCKSJUKHUS', 'SKOMAKARE',
-  'SAXSLIPNING', 'NYCKLAR & STÄMPLAR', 'FRIMÄRKEN & MYNT', 'KNAPPAR & BAND', 'HÖRAPPARATER', 'GAMLA RADIOAPPARATER', 'BLANKETTER',
-  'KORSETTER', 'PARAPLYREPARATIONER', 'AKVARIEFISKAR', 'BEGRAVNINGSBYRÅ', 'KORV & LOTTER', 'GLASÖGON & BAROMETRAR', 'REMMAR & SELAR',
-  'SPÅKVINNA', 'PANTBANK', 'ORTOPEDISKA SKOR', 'BADRUMSVÅGAR', 'HATTMAKARE', 'TOBAK & FISKEDRAG', 'RAMAR & SPEGLAR', 'DAMMSUGARSERVICE',
-  'KAMERAREPARATIONER', 'ÄGG & SMÖR', 'BOKBINDERI', 'GRAVSTENAR', 'SKÖLDPADDOR & TILLBEHÖR', 'UNIFORMER', 'MANNEKÄNGER', 'PIANOSTÄMNING',
-  'LIKKISTOR', 'SPELKORT & TÄRNINGAR', 'MEDALJER & POKALER', 'URMAKARE', 'KORV', 'TOBAK', 'FRISÖR', 'KIOSK', 'LOTTO', 'PANT'];
+// street-level shops as dreary as everything else
+const SHOP_NAMES = ['HANDEL AB', 'LAGERFÖRSÄLJNING', 'KONTORSVAROR', 'BUTIKEN', 'SERVICECENTER', 'DETALJHANDEL', 'VARUBOLAGET',
+  'ALLMÄN HANDEL', 'INKÖPSCENTRALEN', 'BUTIK 14', 'FÖRSÄLJNING', 'KEMTVÄTT', 'NYCKELSERVICE', 'INKASSO AB', 'KREDIT AB', 'SNABBLÅN',
+  'SPEL & LOTTERI', 'PANTBANK', 'KIOSK', 'TOBAK', 'FRISÖR', 'LIVS', 'ÖVERSKOTTSLAGER', 'REA', 'AB DETALJ', 'NORMAB SERVICE',
+  'SVEKO BUTIK', 'UTHYRNING', 'BEGAGNAT', 'VÄXLING', 'FÖRMEDLING AB', 'LAGER & KONTOR', 'TIMHOTELL'];
 const WIN_STYLES = [['glass', 24], ['dark', 22], ['curtains', 20], ['blinds', 14], ['net', 10], ['plant', 4], ['boarded', 2], ['broken', 2], ['paper', 2]];
-const ROOF_SIGNS = ['NORDKAFFE', 'BLÅ TVÄTT', 'RADIO OLSSON', 'SOLMARGARIN', 'TOBAKSBOLAGET', 'GLÖDLAMPOR', 'FÖRSÄKRINGAR', 'KORVFABRIKEN',
-  'DAMMSUGARE', 'SKOKRÄM', 'BILDÄCK', 'LÄSK', 'TVÅL', 'HOTELL', 'PILSNER', 'TANDKRÄM', 'KEX', 'FÄRG & TAPET', 'SYMASKINER', 'MOTOROLJA', 'KAKAO', 'SNUS'];
-const SIDE_WORDS = ['HOTELL', 'BIO', 'BAR', 'DANS', 'RADIO', 'KAFFE', 'PILSNER', 'TVÅL', 'SKOR', 'TOBAK', 'KEX', 'KAKAO', 'LÄSK', 'SNUS', 'PENSIONAT', 'MÖBLER', 'FOTO', 'KORV'];
-const SLOGANS = ['BÄST I TEST', 'SEDAN 1931', 'FÖR HELA FAMILJEN', 'KÖP NU', 'ALLTID FÄRSKT', 'SVENSK KVALITET', 'DRYGT OCH BILLIGT', 'SOM VANLIGT'];
+// advertising that says nothing at all about what anyone does
+const ROOF_SIGNS = ['NORMAB', 'SVEKO', 'UNIFAB', 'NORTEX', 'SAMPRO', 'INTERNORD', 'KONSORTIET', 'CENTRALBOLAGET', 'ALLMÄNNA AB',
+  'NORDISKA INDUSTRI AB', 'SVENSKA FÖRVALTNINGS AB', 'STANDARD AB', 'FÖRENADE AB', 'AB SYSTEM', 'NORDGRUPPEN', 'INTERFORM',
+  'KOMBINAT AB', 'ENHETEN', 'SAMHOLDING', 'GENERALBOLAGET', 'ADMINISTRATIVA AB', 'NORDIC UNION', 'AB TECHNOFORM', 'STATKONTORET'];
+const SIDE_WORDS = ['NORMAB', 'SVEKO', 'UNIFAB', 'NORTEX', 'SAMPRO', 'ENHETEN', 'UNION', 'SYSTEM', 'INTERNORD', 'STANDARD'];
+const SLOGANS = ['ETT FÖRETAG I KONCERNEN', 'SEDAN 1958', 'VI FINNS HÄR', 'KVALITET OCH TRYGGHET', 'FÖR DIG OCH SAMHÄLLET', 'ANSVAR',
+  'EFFEKTIVITET', 'STABILITET', 'ALLTID I TJÄNST', 'EN DEL AV VARDAGEN', 'VI ARBETAR FÖR ER', 'ORDNING OCH REDA'];
+// the one exception: hotels, and not the kind you stay a night in
+const HOTEL_NAMES = ['HOTELL', 'TIMHOTELL', 'HOTELL CENTRAL', 'HOTELL NATT'];
+const HOTEL_SLOGANS = ['RUM PER TIMME', 'TIMPRIS', 'DISKRET ENTRÉ', 'ÖPPET DYGNET RUNT', 'INGA FRÅGOR', 'BAKDÖRR FINNS'];
 const ODD_THINGS = ['fish', 'clock', 'teeth', 'head', 'boot', 'bottle', 'key', 'eye', 'cat', 'hat', 'glasses'];
 const HANGING = ['boot', 'key', 'fish', 'teeth', 'glasses', 'hat', 'clock', 'eye'];
 const DIMS = { tower: [14, 26, 38, 95], slab: [24, 38, 20, 50], tenement: [12, 20, 18, 40], deco: [18, 30, 55, 110], shop: [9, 15, 11, 19], workshop: [14, 24, 9, 15], factory: [30, 46, 12, 22], estate: [44, 70, 38, 66] };
@@ -493,8 +498,21 @@ function renderBuilding(b) {
     for (const fx of [1.3, 3.5]) ink(ellPts(x + fx * u, roofY - 2.4 * u, 0.95 * u, 0.3 * u, { seed: x + fx }), { fill: INK, w: thin });
   };
   // advertising up on the roof: a billboard on scaffolding, or big letters on a lattice
+  // a meaningless corporate mark: initials in a box, bars, a ring, a triangle
+  const blandLogo = (cx, cy, s, name) => {
+    const k = Math.abs(Math.round(h0(name.length + cx) * 10)) % 5;
+    if (k === 0 || name === 'H') {
+      inkPoly(rectPts(cx - s, cy - s, 2 * s, 2 * s), { fill: INK, w: thin });
+      ctx.font = `bold ${s * (name === 'H' ? 1.4 : 0.9)}px "Trebuchet MS", Verdana, sans-serif`; ctx.fillStyle = WHITE; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(name === 'H' ? 'H' : name.replace(/[^A-ZÅÄÖ]/g, '').slice(0, 2), cx, cy + s * 0.05);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    } else if (k === 1) { for (let i = 0; i < 3; i++) inkPoly(rectPts(cx - s, cy - s + i * 0.75 * s, 2 * s, 0.45 * s), { fill: INK, w: 0 }); }
+    else if (k === 2) { ink(ellPts(cx, cy, s, s, { seed: cx }), { w: thin * 2.5 }); inkPoly(rectPts(cx - s, cy - 0.15 * s, 2 * s, 0.3 * s), { fill: INK, w: 0 }); }
+    else if (k === 3) inkPoly([[cx - s, cy + s], [cx, cy - s], [cx + s, cy + s]], { fill: INK, w: thin });
+    else { inkPoly(rectPts(cx - s, cy - s, 2 * s, 2 * s), { w: thin * 2 }); inkPoly(rectPts(cx - 0.4 * s, cy - 0.4 * s, 0.8 * s, 0.8 * s), { fill: INK, w: 0 }); }
+  };
   const roofSign = (x0, x1, roofY) => {
-    const sw = Math.min(x1 - x0 - u, rand(14, 26) * u), sx = x0 + rand(0.5 * u, x1 - x0 - sw - 0.5 * u), name = pick(ROOF_SIGNS);
+    const sw = Math.min(x1 - x0 - u, rand(14, 26) * u), sx = x0 + rand(0.5 * u, x1 - x0 - sw - 0.5 * u), hotel = chance(0.12), name = pick(hotel ? HOTEL_NAMES : ROOF_SIGNS);
     const kind = pick(['billboard', 'letters']), legH = rand(2, 4) * u, font = (sz) => `bold ${sz}px "Trebuchet MS", Verdana, sans-serif`;
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     if (kind === 'billboard') {
@@ -507,12 +525,12 @@ function renderBuilding(b) {
       inkPoly(rectPts(sx, by, sw, bh), { fill: chance(0.6) ? WHITE : PAPER, w: LW });
       inkPoly(rectPts(sx + 0.4 * u, by + 0.4 * u, sw - 0.8 * u, bh - 0.8 * u), { w: thin * 0.8 });
       const ph = bh * 0.7;
-      oddThing(pick(['bottle', 'clock', 'hat', 'boot', 'glasses', 'key', 'fish', 'cat']), sx + ph * 0.55, by + bh * 0.85, ph * 0.33, INK);
+      blandLogo(sx + ph * 0.55, by + bh / 2, ph * 0.32, hotel ? 'H' : name);
       let fs = bh * 0.38; ctx.font = font(fs);
       const room = sw - ph - 1.5 * u, tw = ctx.measureText(name).width;
       if (tw > room) { fs *= room / tw; ctx.font = font(fs); }
       ctx.fillStyle = INK; ctx.fillText(name, sx + ph + 0.6 * u, by + bh * 0.55);
-      ctx.font = font(fs * 0.4); ctx.fillText(pick(SLOGANS), sx + ph + 0.6 * u, by + bh * 0.8);
+      ctx.font = font(fs * 0.4); ctx.fillText(pick(hotel ? HOTEL_SLOGANS : SLOGANS), sx + ph + 0.6 * u, by + bh * 0.8);
       grime(sx, sx + sw, by, by + bh, u, 0.7);
       if (chance(0.3)) inkPoly([[sx + sw, by], [sx + sw - 2 * u, by], [sx + sw - 0.6 * u, by + 1.6 * u]], { fill: PAPER, w: thin }); // peeling corner
       if (chance(0.5)) for (const f of [0.25, 0.75]) { // floodlights on the catwalk
@@ -528,12 +546,13 @@ function renderBuilding(b) {
       line(sx, ty, sx + w2, ty, thin * 1.6); line(sx, ty + legH * 0.5, sx + w2, ty + legH * 0.5, thin);
       for (let x = sx, i = 0; x < sx + w2; x += 1.2 * u, i++) line(x, roofY, Math.min(sx + w2, x + 1.2 * u), ty, thin * 0.8);
       for (let x = sx; x <= sx + w2 + 0.1; x += w2 / 3) line(x, roofY, x, ty - fs * 0.5, thin * 1.2);
-      const lit = chance(0.5), dead = Math.random() * name.length | 0, flicker = (dead + 1 + (Math.random() * 3 | 0)) % name.length;
+      const lit = chance(0.5), broken = chance(0.3), dead = broken ? Math.random() * name.length | 0 : -1;
+      const flicker = broken && chance(0.5) ? (dead + 1 + (Math.random() * 3 | 0)) % name.length : -1;
       let x = sx;
       [...name].forEach((ch, i) => {
         const cw = ctx.measureText(ch).width;
         if (ch !== ' ' && !(i === dead && chance(0.35))) { // now and then a letter has fallen off
-          const tilt = i === dead ? rand(-0.25, 0.25) : 0;
+          const tilt = i === dead && chance(0.5) ? rand(-0.25, 0.25) : 0;
           ctx.save(); ctx.translate(x, ty); ctx.rotate(tilt);
           ctx.fillStyle = WHITE; ctx.fillText(ch, 0, 0);
           ctx.strokeStyle = INK; ctx.lineWidth = thin * 1.2; ctx.strokeText(ch, 0, 0);
@@ -546,14 +565,14 @@ function renderBuilding(b) {
   };
   // a tall blade sign sticking out from the edge of the wall, letters stacked top to bottom
   const sideSign = (right, yMin = -h + 3 * u) => {
-    const word = pick(SIDE_WORDS), lh = 2.2 * u, sh = word.length * lh + 1.2 * u, yMax = -14 * u - sh;
+    const hotel = chance(0.2), word = hotel ? 'HOTELL' : pick(SIDE_WORDS), lh = 2.2 * u, sh = word.length * lh + 1.2 * u, yMax = -14 * u - sh - (hotel ? 3 * u : 0);
     if (yMax < yMin) return;
     const top = rand(yMin, yMax), sw = 2.6 * u, sx = right ? w - 0.6 * u : -2 * u, dark = chance(0.6), edge = right ? w : 0;
     for (const f of [0.12, 0.5, 0.88]) line(edge - (right ? 0.8 : -0.8) * u, top + sh * f, right ? sx : sx + sw, top + sh * f, thin * 1.4);
     inkPoly([[sx, top], [sx + sw / 2, top - 1.4 * u], [sx + sw, top]], { fill: dark ? INK : WHITE, w: thin * 1.2 });
     inkPoly(rectPts(sx, top, sw, sh), { fill: dark ? INK : WHITE, w: thin * 1.5 });
     if (!dark) inkPoly(rectPts(sx + 0.3 * u, top + 0.3 * u, sw - 0.6 * u, sh - 0.6 * u), { w: thin * 0.6 });
-    const f = `bold ${1.7 * u}px "Trebuchet MS", Verdana, sans-serif`, lit = chance(0.45), dead = Math.random() * word.length | 0;
+    const f = `bold ${1.7 * u}px "Trebuchet MS", Verdana, sans-serif`, lit = chance(hotel ? 0.9 : 0.45), dead = chance(0.3) ? Math.random() * word.length | 0 : -1;
     ctx.font = f; ctx.fillStyle = dark ? WHITE : INK; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     [...word].forEach((ch, i) => {
       const cx = sx + sw / 2, cy = top + 1.7 * u + i * lh;
@@ -561,6 +580,14 @@ function renderBuilding(b) {
       if (lit) b.letters.push({ ch, x: cx, y: cy, font: f, tilt: 0, t: rand(0.2, 0.4), align: 'center', base: 'middle', state: i === dead ? (chance(0.5) ? 'dead' : 'flicker') : 'on' });
     });
     grime(sx, sx + sw, top, top + sh, u, 0.5);
+    if (hotel) { // a small plate hanging underneath
+      const pw = 4.6 * u, px = sx + sw / 2 - pw / 2, py = top + sh + 0.8 * u, pf = `bold ${0.95 * u}px "Trebuchet MS", Verdana, sans-serif`;
+      line(px + 0.6 * u, top + sh, px + 0.6 * u, py, thin); line(px + pw - 0.6 * u, top + sh, px + pw - 0.6 * u, py, thin);
+      inkPoly(rectPts(px, py, pw, 1.5 * u), { fill: dark ? WHITE : INK, w: thin * 1.2 });
+      ctx.font = pf; ctx.fillStyle = dark ? INK : WHITE; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('PER TIMME', px + pw / 2, py + 0.78 * u);
+      if (lit) b.letters.push({ ch: 'PER TIMME', x: px + pw / 2, y: py + 0.78 * u, font: pf, tilt: 0, t: rand(0.2, 0.4), align: 'center', base: 'middle', state: 'on' });
+    }
   };
   const roofStuff = (x0, x1, roofY, nAnt) => {
     if (x1 - x0 > 10 * u && chance(0.6)) roofSign(x0, x1, roofY);

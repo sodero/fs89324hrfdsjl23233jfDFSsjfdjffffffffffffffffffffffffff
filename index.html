@@ -224,22 +224,22 @@ const blit = (s, x, y) => ctx.drawImage(s.cv, x - s.pad, y - s.top, s.w, s.h);
 
 const MIX = ['tower', 'tower', 'slab', 'tenement', 'tenement', 'deco', 'shop', 'workshop'];
 const LAYER_DEFS = [
-  { s: 0.4, f: 0.1, base: 0.58, fill: '#c9c6bf', flat: true, gap: [-4, 0], types: [...MIX, 'factory', 'factory', 'plant'] },
-  { s: 0.55, f: 0.22, base: 0.7, fill: '#dcd5c3', lw: 0.45, gap: [-3, 0], types: [...MIX, 'factory', 'factory', 'plant'] },
-  { s: 0.72, f: 0.4, base: 0.84, fill: '#e5dfcc', lw: 0.6, gap: [-2, 0.5], types: [...MIX, 'factory', 'plant'] },
+  { s: 0.4, f: 0.1, base: 0.58, fill: '#c9c6bf', flat: true, gap: [-4, 0], types: [...MIX, 'factory', 'factory', 'estate'] },
+  { s: 0.55, f: 0.22, base: 0.7, fill: '#dcd5c3', lw: 0.45, gap: [-3, 0], types: [...MIX, 'factory', 'factory', 'estate'] },
+  { s: 0.72, f: 0.4, base: 0.84, fill: '#e5dfcc', lw: 0.6, gap: [-2, 0.5], types: [...MIX, 'factory', 'estate', 'estate'] },
   { s: 1, f: 1, base: 1, fill: PAPER, lw: 0.9, gap: [-1, 3], types: [...MIX, 'workshop', 'workshop'], links: true },
 ];
 const WORKSHOP_NAMES = ['VERKSTAD', 'SVETS & SMIDE', 'BILVERKSTAD', 'PLÅTSLAGERI', 'RÖRMOKERI', 'GJUTERI', 'MEK. VERKSTAD', 'DÄCK',
   'SKROT', 'LACKERING', 'SNICKERI', 'MOTORER', 'FJÄDRAR & BULTAR', 'OLJA', 'SLIPERI', 'KYLMONTAGE'];
-const SHOP_NAMES = ['BEGAGNADE TÄNDER', 'SKRUVAR & SORG', 'ÅNGEST AB', 'LÖSA DELAR', 'KORV & JURIDIK', 'SPÖKEN KÖPES', 'TOMMA BURKAR',
-  'HATTAR FÖR HUNDAR', 'VÄNTRUM', 'INGENTING', 'BEGAGNAD LUFT', 'KATTMAT & KÄNSLOR', 'NYCKLAR UTAN LÅS', 'FUKT', 'SPRINGFJÄDRAR',
-  'MÅNADENS RÖR', 'ENBART VÄNSTERSKOR', 'GLASÖGON FÖR FISKAR', 'GAMLA LJUD', 'ÅTERVUNNA SKRATT', 'KNAPPAR & KNARR', 'DAMM I LÖSVIKT',
-  'URMAKARE (STÄNGT)', 'PERUKER & PARAFFIN', 'SNÖRE', 'HÅL', 'ÄGG & ELEKTRONIK', 'SORGLIGA LEKSAKER', 'TRASIGA PARAPLYER', 'MÖRKER',
-  'EKO', 'ÖGON', 'SKELETT & SKOR', 'FRISÖR FÖR KATTER', 'ÖPPET 03–04', 'LIM', 'FEL NUMMER', 'SVETT & SÖTSAKER', 'BURKAR MED INGET I',
-  'KORV', 'TOBAK', 'FRISÖR', 'KIOSK', 'LOTTO', 'URMAKARE', 'PANT'];
+const SHOP_NAMES = ['BEGAGNADE SYMASKINER', 'TANDTEKNIKER', 'KONSERVATOR', 'PERUKER & POSTISCHER', 'DOCKSJUKHUS', 'SKOMAKARE',
+  'SAXSLIPNING', 'NYCKLAR & STÄMPLAR', 'FRIMÄRKEN & MYNT', 'KNAPPAR & BAND', 'HÖRAPPARATER', 'GAMLA RADIOAPPARATER', 'BLANKETTER',
+  'KORSETTER', 'PARAPLYREPARATIONER', 'AKVARIEFISKAR', 'BEGRAVNINGSBYRÅ', 'KORV & LOTTER', 'GLASÖGON & BAROMETRAR', 'REMMAR & SELAR',
+  'SPÅKVINNA', 'PANTBANK', 'ORTOPEDISKA SKOR', 'BADRUMSVÅGAR', 'HATTMAKARE', 'TOBAK & FISKEDRAG', 'RAMAR & SPEGLAR', 'DAMMSUGARSERVICE',
+  'KAMERAREPARATIONER', 'ÄGG & SMÖR', 'BOKBINDERI', 'GRAVSTENAR', 'SKÖLDPADDOR & TILLBEHÖR', 'UNIFORMER', 'MANNEKÄNGER', 'PIANOSTÄMNING',
+  'LIKKISTOR', 'SPELKORT & TÄRNINGAR', 'MEDALJER & POKALER', 'URMAKARE', 'KORV', 'TOBAK', 'FRISÖR', 'KIOSK', 'LOTTO', 'PANT'];
 const ODD_THINGS = ['fish', 'clock', 'teeth', 'head', 'boot', 'bottle', 'key', 'eye', 'cat', 'hat', 'glasses'];
 const HANGING = ['boot', 'key', 'fish', 'teeth', 'glasses', 'hat', 'clock', 'eye'];
-const DIMS = { tower: [14, 26, 38, 95], slab: [24, 38, 20, 50], tenement: [12, 20, 18, 40], deco: [18, 30, 55, 110], shop: [9, 15, 11, 19], workshop: [14, 24, 9, 15], factory: [30, 46, 12, 22], plant: [52, 64, 18, 24] };
+const DIMS = { tower: [14, 26, 38, 95], slab: [24, 38, 20, 50], tenement: [12, 20, 18, 40], deco: [18, 30, 55, 110], shop: [9, 15, 11, 19], workshop: [14, 24, 9, 15], factory: [30, 46, 12, 22], estate: [44, 70, 38, 66] };
 
 function spawnBuilding(lay) {
   const L = lay.L, u = B * L.s, type = pick(L.types), d = DIMS[type];
@@ -249,11 +249,6 @@ function spawnBuilding(lay) {
   if (type === 'factory') {
     const hw = b.w * 0.7, n = 1 + (Math.random() * 3 | 0);
     for (let i = 0; i < n; i++) b.stacks.push({ x: hw * (n === 1 ? rand(0.3, 0.7) : 0.15 + i * 0.7 / (n - 1)), y: -tall(), w: rand(2.4, 3.6) * u, dark: chance(0.5), t: rand(0, 0.4) });
-  } else if (type === 'plant') {
-    // coal power plant: cooling towers breathing steam, and one very tall chimney
-    b.towers = [{ x: b.w * 0.14, h: rand(28, 36) * u }, { x: b.w * 0.4, h: rand(24, 32) * u }];
-    for (const t of b.towers) b.stacks.push({ x: t.x, y: -t.h, w: t.h * 0.38, steam: true, t: rand(0, 0.3) });
-    b.stacks.push({ x: b.w * 0.86, y: -rand(95, 130) * u, w: 4.5 * u, dark: true, t: 0 });
   } else if (type === 'workshop') {
     b.roof = pick(['shed', 'gable', 'saw']);
     b.stacks.push({ x: b.w * rand(0.15, 0.85), y: -b.h - rand(5, 9) * u, w: 0.9 * u, dark: chance(0.7), t: rand(0, 1), small: true, vent: true }); // stovepipe
@@ -263,7 +258,7 @@ function spawnBuilding(lay) {
     b.stacks.push({ x: b.w * rand(0.15, 0.85), y: -b.h - rand(3, 5) * u, w: 1.2 * u, dark: chance(0.4), t: rand(0, 2), small: true, vent: true });
   }
   // pipes and cables strung across the alley to the next building
-  b.links = !L.links ? [] : Array.from({ length: 2 + (Math.random() * 4 | 0) }, () => chance(0.5)
+  b.links = !L.links ? [] : Array.from({ length: 3 + (Math.random() * 5 | 0) }, () => chance(0.65)
     ? { pipe: true, y0: rand(0.05, 0.6), y1: rand(0.05, 0.6), d: rand(0.5, 1.3) * u, jog: rand(0.25, 0.75) }
     : { pipe: false, y0: rand(0.1, 0.95), y1: rand(0.1, 0.95), sag: rand(0.5, 4) * u });
   const top = Math.max(b.h + 20 * u, ...b.stacks.map((s) => -s.y + 2 * u));
@@ -317,6 +312,53 @@ function renderBuilding(b) {
     for (let i = 0; i < 4; i++) line(x + 0.25 * u, y + (0.35 + i * 0.4) * u, x + 0.9 * u, y + (0.35 + i * 0.4) * u, thin * 0.7);
     line(x + 0.3 * u, y + 1.9 * u, x + 0.6 * u, y + 2.4 * u, thin); line(x + 2.3 * u, y + 1.9 * u, x + 2.0 * u, y + 2.4 * u, thin);
     line(x + 2.5 * u, y + 1.9 * u, x + 2.55 * u, y + 1.9 * u + rand(1, 4) * u, thin * 0.6);
+  };
+  // a fixed iron ladder, optionally caged, with a goose-neck over the top
+  const ladder = (x, top, bottom, cage = true) => {
+    const rw = 0.9 * u;
+    for (const lx of [x, x + rw]) { line(lx, top, lx, bottom, thin * 1.2); line(lx, top, lx, top - 1.4 * u, thin * 1.2); }
+    for (let y = top + 0.3 * u; y < bottom; y += 0.6 * u) line(x, y, x + rw, y, thin * 0.8);
+    for (let y = top + u; y < bottom - u; y += 4 * u) { line(x - 0.4 * u, y, x, y, thin); line(x + rw, y, x + rw + 0.4 * u, y, thin); }
+    if (cage && bottom - top > 6 * u) {
+      ctx.strokeStyle = INK; ctx.lineWidth = thin * 0.7;
+      for (let y = top + 0.5 * u; y < bottom - 3 * u; y += 1.6 * u) { ctx.beginPath(); ctx.ellipse(x + rw / 2, y, rw * 0.9, 0.3 * u, 0, 0, Math.PI); ctx.stroke(); }
+      for (const o of [-0.9, 0, 0.9]) line(x + rw / 2 + o * rw, top + 0.6 * u, x + rw / 2 + o * rw, bottom - 3.2 * u, thin * 0.6);
+    }
+  };
+  // zigzag fire escape: landings with railings, stairs between them, and a drop ladder at the bottom
+  const fireEscape = (fx, fw, yTop, yBot, step) => {
+    let last = null;
+    for (let py = yTop; py < yBot; py += step) {
+      line(fx, py, fx + fw, py, LW);
+      line(fx, py - 1.2 * u, fx + fw, py - 1.2 * u, thin);
+      for (let x = fx; x <= fx + fw; x += 0.8 * u) line(x, py, x, py - 1.2 * u, thin * 0.8);
+      line(fx, py + 0.2 * u, fx + 0.8 * u, py + 1.2 * u, thin); line(fx + fw, py + 0.2 * u, fx + fw - 0.8 * u, py + 1.2 * u, thin);
+      if (py + step < yBot) line(fx + fw * 0.15, py, fx + fw * 0.85, py + step, thin * 1.5);
+      last = py;
+    }
+    if (last !== null) ladder(fx + fw * 0.75, last, last + 6 * u, false);
+  };
+  // pipes wandering up and across a wall, with flanged joints, the odd valve and a pressure gauge
+  const plumbing = (n, x0, x1, top, bottom) => {
+    if (x1 - x0 < 2 * u || bottom - top < 4 * u) return;
+    for (let i = 0; i < n; i++) {
+      const d = rand(0.35, 0.8) * u;
+      let x = rand(x0, x1), y = bottom, vertical = true;
+      const pts = [[x, y]];
+      for (let k = 0, m = 3 + (Math.random() * 4 | 0); k < m; k++) {
+        if (vertical) y = Math.max(top, y - rand(3, 14) * u); else x = Math.min(x1, Math.max(x0, x + rand(-9, 9) * u));
+        pts.push([x, y]); vertical = !vertical;
+      }
+      pipeLine(pts, d, fill);
+      for (const [jx, jy] of pts.slice(1, -1)) inkPoly(rectPts(jx - d * 0.8, jy - d * 0.8, d * 1.6, d * 1.6), { fill, w: thin });
+      for (let k = 0; k + 1 < pts.length; k++) { // brackets holding it to the wall
+        const [ax, ay] = pts[k], [bx, by] = pts[k + 1];
+        if (ax === bx) for (let yy = Math.min(ay, by) + 2 * u; yy < Math.max(ay, by) - u; yy += 3 * u) line(ax - d, yy, ax + d, yy, thin * 1.3);
+      }
+      const [ax, ay] = pts[1], [bx, by] = pts[2], mx = (ax + bx) / 2, my = (ay + by) / 2;
+      if (chance(0.4)) { ink(ellPts(mx, my - 1.2 * u, 0.7 * u, 0.7 * u, { seed: mx }), { w: thin * 1.3 }); line(mx, my, mx, my - 1.2 * u, thin); line(mx - 0.7 * u, my - 1.2 * u, mx + 0.7 * u, my - 1.2 * u, thin); }
+      else if (chance(0.4)) { ink(ellPts(mx, my, 0.6 * u, 0.6 * u, { seed: my }), { fill: WHITE, w: thin }); line(mx, my, mx + 0.35 * u, my - 0.3 * u, thin * 0.8); }
+    }
   };
   const wallACs = (n, x0, x1, yTop, yBot) => { for (let i = 0; i < n && yBot > yTop; i++) wallAC(rand(x0, x1 - 2.6 * u), rand(yTop, yBot)); };
   const wallDishes = (n, x0, x1, yTop, yBot) => {
@@ -412,7 +454,6 @@ function renderBuilding(b) {
   if (L.flat) {
     ctx.fillStyle = fill;
     if (type === 'deco') { ctx.fillRect(0, -h * 0.62, w, h * 0.62); ctx.fillRect(w * 0.14, -h * 0.84, w * 0.72, h * 0.23); ctx.fillRect(w * 0.27, -h, w * 0.46, h * 0.17); ctx.fillRect(w * 0.48, -h - 14 * u, w * 0.04, 14 * u); }
-    else if (type === 'plant') { for (const s of b.stacks) if (!s.steam) ctx.fillRect(s.x - s.w / 2, s.y, s.w, -s.y); for (const t of b.towers) { ctx.beginPath(); polyClip(towerPts(t.x, t.h))(); ctx.fill(); } ctx.fillRect(w * 0.55, -h, w * 0.23, h); }
     else if (type === 'factory') { ctx.fillRect(0, -h, w * 0.7, h); ctx.fillRect(w * 0.72, -h * 0.8, w * 0.28, h * 0.8); for (const s of b.stacks) ctx.fillRect(s.x - s.w / 2, s.y, s.w, -s.y); }
     else { ctx.fillRect(0, -h, w, h); if (h0(seed) > 0) ctx.fillRect(w * 0.5, -h - 12 * u, 0.6 * u, 12 * u); }
     return;
@@ -426,6 +467,9 @@ function renderBuilding(b) {
     dirt(0, w, -h);
     wallACs(2 + (Math.random() * 5 | 0), 0.3 * u, w * 0.95, -h + 3 * u, -12 * u);
     wallDishes(Math.random() * 3 | 0, 0.5 * u, w * 0.8, -h + 4 * u, -12 * u);
+    plumbing(2 + (Math.random() * 3 | 0), 0.5 * u, w * 0.95, -h + u, -9 * u);
+    if (chance(0.4)) fireEscape(w * 0.62, w * 0.34, -h + 4 * u, -13 * u, 6.4 * u);
+    else if (chance(0.6)) ladder(chance(0.5) ? 0.4 * u : w - 1.4 * u, -h, -9 * u);
     shopFront(0.4 * u, w * 0.6);
     inkPoly(rectPts(w * 0.66, -4.5 * u, w * 0.2, 4.5 * u), { fill: INK });
     inkPoly(rectPts(w * 0.62, -5.3 * u, w * 0.28, 0.8 * u), { fill });
@@ -452,7 +496,7 @@ function renderBuilding(b) {
       shade(w * 0.45, -h - 5 * u, w * 0.1, 4 * u);
     }
     roofStuff(w * 0.05, w * 0.95, -h - u, 1 + (Math.random() * 2 | 0));
-  } else if (type === 'slab') {
+  } else if (type === 'slab' || type === 'estate') {
     inkPoly(rectPts(0, -h, w, h), { fill });
     shade(w * 0.86, -h, w * 0.14, h);
     const fh = 3.6 * u, units = Math.floor((w - u) / (5 * u)), uw = (w - u) / units;
@@ -467,8 +511,17 @@ function renderBuilding(b) {
         else if (h0(seed + i * 5 + j * 2) > 0.75) dish(x + 3.6 * u, y + 1.5 * u, 0.9 * u, pick([-1, 1])); // dish on the balcony
       }
     }
+    if (type === 'estate') for (const f of [0.28, 0.66]) {
+      const sx = w * f, sw = 3.2 * u;
+      inkPoly(rectPts(sx, -h - 3 * u, sw, h - 7 * u), { fill });
+      shade(sx + sw * 0.7, -h - 3 * u, sw * 0.3, h - 7 * u);
+      for (let y = -h + u; y < -12 * u; y += fh) inkPoly(rectPts(sx + 0.8 * u, y, 1.2 * u, 2.4 * u), { fill: WHITE, w: thin });
+    }
     dirt(0, w, -h);
     wallACs(3 + (Math.random() * 6 | 0), 0.3 * u, w * 0.95, -h + 2 * u, -13 * u);
+    plumbing(2 + (Math.random() * 3 | 0), u, w - u, -h + u, -9.5 * u);
+    if (chance(0.4)) fireEscape(0.6 * u, w * 0.25, -h + 3 * u, -13 * u, 7.2 * u);
+    if (chance(0.6)) ladder(w - 2.4 * u, -h, -9.5 * u);
     shopFront(1.4 * u, w * 0.4);
     inkPoly(rectPts(w * 0.43, -5 * u, w * 0.14, 5 * u), { fill: INK });
     shopFront(w * 0.6, w - 1.6 * u);
@@ -482,6 +535,7 @@ function renderBuilding(b) {
     inkPoly(rectPts(-0.8 * u, -h - 1.2 * u, w + 1.6 * u, 1.4 * u), { fill });
     for (let x = 0; x < w; x += 1.2 * u) line(x, -h + 0.2 * u, x, -h + 0.8 * u, thin * 1.5);
     const cols = Math.max(2, Math.floor((w - 2 * u) / (3.4 * u))), cw = (w - 2 * u) / cols;
+    let lastLanding = 0;
     for (let j = 0, y = -h + 2.5 * u; y < -13 * u; j++, y += 4.2 * u) {
       for (let i = 0; i < cols; i++) {
         const x = u + i * cw + cw * 0.25;
@@ -495,14 +549,17 @@ function renderBuilding(b) {
         for (let x = fx; x <= fx + fw; x += 0.8 * u) line(x, py, x, py - 1.2 * u, thin * 0.8);
         line(fx + fw * 0.15, py, fx + fw * 0.85, py + 8.4 * u, thin * 1.5);
         if (h0(seed + j) > 0.6) sittingCat(fx + fw * 0.6, py, u * 0.7, -1);
+        lastLanding = py;
       }
     }
+    if (lastLanding) ladder(w * 0.6 + w * 0.36 * 0.75, lastLanding, lastLanding + 5 * u, false); // drop ladder
     dirt(0, w, -h, 0, 1.2);
     drain(0.3 * u, -h);
     pipeLine([[w * 0.45, -2.6 * u], [w * 0.45, -7 * u], [w * 0.58, -7 * u]], 0.4 * u, fill); // gas riser
     facadeCables(2);
     wallACs(1 + (Math.random() * 4 | 0), 0.3 * u, w * 0.6, -h + 3 * u, -12 * u);
     wallDishes(Math.random() * 2 | 0, 0.5 * u, w * 0.5, -h + 3 * u, -12 * u);
+    plumbing(1 + (Math.random() * 3 | 0), u, w * 0.55, -h + u, -9 * u);
     shopFront(1.2 * u, w - 0.8 * u);
     roofStuff(0, w, -h - 1.2 * u, 1 + (Math.random() * 3 | 0));
   } else if (type === 'shop') {
@@ -518,6 +575,8 @@ function renderBuilding(b) {
     }
     dirt(0, w, -h, 0, 1.2);
     if (h > 12 * u) wallACs(1 + (Math.random() * 2 | 0), 0.3 * u, w * 0.9, -h + 2 * u, -11 * u);
+    plumbing(1 + (Math.random() * 2 | 0), u, w - u, -h + u, -9 * u);
+    if (chance(0.4)) ladder(0.3 * u, -h, -9 * u, false);
     shopFront(0.6 * u, w - 1.4 * u);
     drain(w - 0.8 * u, -h);
     roofStuff(0, w, -h - u, Math.random() * 3 | 0);
@@ -545,6 +604,8 @@ function renderBuilding(b) {
     line(w * 0.73, -h * 0.62, w * 0.73, -h * 0.37, thin); line(w * 0.62, -h * 0.495, w * 0.84, -h * 0.495, thin);
     inkPoly(rectPts(w * 0.62, -4.5 * u, 2 * u, 4.5 * u), { fill });
     dirt(0, w, -h, 0, 1.6);
+    plumbing(2 + (Math.random() * 2 | 0), w * 0.55, w - 0.5 * u, -h + 0.5 * u, 0);
+    if (chance(0.6)) ladder(w - 1.6 * u, -h - (b.roof === 'shed' ? 2.6 : 0) * u, 0, false);
     signBoard(w * 0.42, -h + 1.8 * u, pick(WORKSHOP_NAMES), 1.4 * u, chance(0.5), w * 0.8);
     if (chance(0.5)) wallAC(w * 0.62, -h * 0.32 - 2 * u);
     pipeLine([[w - 0.6 * u, -h - 0.5 * u], [w - 0.6 * u, -0.6 * u]], 0.45 * u, fill);
@@ -557,30 +618,6 @@ function renderBuilding(b) {
     }
     if (chance(0.6)) { const x = rand(w * 0.85, w * 1.0); for (let i = 0; i < 2 + (Math.random() * 3 | 0); i++) ink(ellPts(x, -0.4 * u - i * 0.75 * u, 1.1 * u, 0.38 * u, { seed: x + i }), { fill: INK, w: thin }); }
     if (chance(0.5)) for (let i = 0; i < 2; i++) { const x = w * 0.55 + i * 0.8 * u; inkPoly([[x, 0], [x, -2.6 * u], [x + 0.3 * u, -3 * u], [x + 0.6 * u, -2.6 * u], [x + 0.6 * u, 0]], { fill: i ? INK : WHITE, w: thin }); }
-  } else if (type === 'plant') {
-    for (const s of b.stacks) if (!s.steam) chimney(s, -h);
-    for (const t of b.towers) {
-      const pts = towerPts(t.x, t.h);
-      inkPoly(pts, { fill });
-      hatch([polyClip(pts), () => ctx.rect(t.x + t.h * 0.06, -t.h - u, t.h, t.h + 2 * u)], t.x + t.h * 0.15, -t.h / 2, t.h * 0.7, 1.1, LW * 1.2, thin, t.x);
-      ink(ellPts(t.x, -t.h, t.h * 0.2, t.h * 0.035, { seed: t.x }), { fill });
-      for (let i = -6; i < 6; i++) line(t.x + i * t.h * 0.042, 0, t.x + (i + 0.5) * t.h * 0.042, -t.h * 0.05, thin); // the open lattice at the foot
-    }
-    const bx = w * 0.55, bw = w * 0.23;
-    pipeLine([[b.towers[1].x, -h * 0.25], [bx + u, -h * 0.25]], 1.2 * u, fill);
-    pipeLine([[b.towers[0].x, -h * 0.12], [b.towers[0].x, -h * 0.4], [bx + u, -h * 0.4]], 0.9 * u, fill);
-    inkPoly([[bx, 0], [bx, -h], [bx + bw * 0.6, -h], [bx + bw * 0.6, -h - 3 * u], [bx + bw, -h - 3 * u], [bx + bw, 0]], { fill });
-    shade(bx + bw * 0.78, -h - 3 * u, bw * 0.22, h + 3 * u);
-    for (let x = bx + u; x + u < bx + bw * 0.75; x += 2.2 * u) inkPoly(rectPts(x, -h + 2.5 * u, 1.1 * u, h * 0.45), { fill: WHITE, w: thin * 1.3 });
-    dirt(bx, bx + bw, -h - 3 * u, 0, 1.3);
-    // coal heap and the conveyor feeding the boiler house
-    const c0 = [w * 0.9, -4.5 * u], c1 = [bx + bw * 0.85, -h - 3 * u];
-    line(c0[0], c0[1], c1[0], c1[1], LW);
-    line(c0[0] + u, c0[1] + 0.8 * u, c1[0] + u, c1[1] + 0.8 * u, thin * 1.4);
-    for (let t = 0.05; t < 1; t += 0.08) { const x = c0[0] + (c1[0] - c0[0]) * t, y = c0[1] + (c1[1] - c0[1]) * t; line(x, y, x + u, y + 0.8 * u, thin); }
-    const heap = [];
-    for (let i = 0; i <= 10; i++) { const t = i / 10; heap.push([w * 0.78 + t * w * 0.24, -Math.sin(Math.PI * t) * 5 * u * (1 + 0.1 * h0(seed + i))]); }
-    inkPoly(heap, { fill: '#3a3532' });
   } else if (type === 'factory') {
     const hw = w * 0.7, n = Math.max(3, Math.round(hw / (4 * u))), tw = hw / n, th = 2.6 * u;
     for (const s of b.stacks) chimney(s, -h - th); // chimneys behind the hall
@@ -592,6 +629,8 @@ function renderBuilding(b) {
     line(0, -h, hw, -h, thin * 1.5);
     for (let x = 1.5 * u; x + 1.8 * u < hw - u; x += 3 * u) inkPoly(rectPts(x, -h * 0.85, 1.8 * u, h * 0.3), { fill: WHITE, w: thin * 1.5 });
     dirt(0, hw, -h, 0, 1.3);
+    plumbing(3 + (Math.random() * 3 | 0), 0.5 * u, hw - 0.5 * u, -h + 0.5 * u, 0);
+    if (chance(0.7)) ladder(0.4 * u, -h, 0, true);
     const dw = Math.min(6 * u, hw * 0.25), dx = hw * 0.55;
     inkPoly(rectPts(dx, -h * 0.42, dw, h * 0.42), { fill });
     for (let k = 1; k < 6; k++) line(dx, -h * 0.42 * k / 6, dx + dw, -h * 0.42 * k / 6, thin);
@@ -635,17 +674,9 @@ function renderBuilding(b) {
     wallACs(2 + (Math.random() * 3 | 0), 0.3 * u, w * 0.95, -h * 0.55, -11 * u);
     shopFront(0.6 * u, w * 0.48);
     shopFront(w * 0.52, w - 0.6 * u);
+    plumbing(1 + (Math.random() * 3 | 0), u, w - u, -h * 0.55, -10 * u);
+    if (chance(0.5)) ladder(w - 1.6 * u, -h * 0.62, -10 * u);
   }
-}
-
-// hyperboloid outline of a cooling tower standing on y = 0
-function towerPts(cx, th) {
-  const L = [], R = [];
-  for (let i = 0; i <= 10; i++) {
-    const t = i / 10, v = 1 - t, hw = (v * v * 0.27 + 2 * v * t * 0.13 + t * t * 0.2) * th, y = -(2 * v * t * 0.58 + t * t) * th;
-    L.push([cx - hw, y]); R.unshift([cx + hw, y]);
-  }
-  return [...L, ...R];
 }
 
 // ---------- utility poles ----------
@@ -710,9 +741,9 @@ function updateSmoke(dt) {
       for (const s of b.stacks) {
         const x = b.x + s.x;
         if ((s.t -= dt) > 0 || x < -20 * B || x > W + 20 * B) continue;
-        s.t = (s.small ? rand(0.35, 0.7) : s.steam ? rand(0.2, 0.32) : rand(0.12, 0.22)) / (lay.L.s * lay.L.s); // distant chimneys puff less often
-        lay.puffs.push({ x: x + rand(-0.2, 0.2) * s.w, y: lay.base + s.y, r: s.w * (s.steam ? 0.3 : 0.65), vx: rand(0.8, 1.8) * u * (s.steam ? 0.6 : 1), vy: -rand(1.5, 2.8) * u,
-          grow: (s.small ? 0.7 : s.steam ? 1.4 : 1.3) * u, age: 0, life: s.small ? rand(3.5, 5.5) : rand(6, 10), dark: s.dark, seed: rand(0, 1000) });
+        s.t = (s.small ? rand(0.35, 0.7) : rand(0.12, 0.22)) / (lay.L.s * lay.L.s); // distant chimneys puff less often
+        lay.puffs.push({ x: x + rand(-0.2, 0.2) * s.w, y: lay.base + s.y, r: s.w * 0.65, vx: rand(0.8, 1.8) * u, vy: -rand(1.5, 2.8) * u,
+          grow: (s.small ? 0.7 : 1.3) * u, age: 0, life: s.small ? rand(3.5, 5.5) : rand(6, 10), dark: s.dark, seed: rand(0, 1000) });
       }
     }
     for (const p of lay.puffs) { p.age += dt; p.x += (p.vx - SPEED * lay.L.f) * dt; p.y += p.vy * dt * (1 - p.age / p.life * 0.6); p.r += p.grow * dt; }

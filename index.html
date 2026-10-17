@@ -286,6 +286,7 @@ const SHOP_NAMES = ['BEGAGNADE SYMASKINER', 'TANDTEKNIKER', 'KONSERVATOR', 'PERU
   'SPÅKVINNA', 'PANTBANK', 'ORTOPEDISKA SKOR', 'BADRUMSVÅGAR', 'HATTMAKARE', 'TOBAK & FISKEDRAG', 'RAMAR & SPEGLAR', 'DAMMSUGARSERVICE',
   'KAMERAREPARATIONER', 'ÄGG & SMÖR', 'BOKBINDERI', 'GRAVSTENAR', 'SKÖLDPADDOR & TILLBEHÖR', 'UNIFORMER', 'MANNEKÄNGER', 'PIANOSTÄMNING',
   'LIKKISTOR', 'SPELKORT & TÄRNINGAR', 'MEDALJER & POKALER', 'URMAKARE', 'KORV', 'TOBAK', 'FRISÖR', 'KIOSK', 'LOTTO', 'PANT'];
+const WIN_STYLES = [['glass', 24], ['dark', 22], ['curtains', 20], ['blinds', 14], ['net', 10], ['plant', 4], ['boarded', 2], ['broken', 2], ['paper', 2]];
 const ODD_THINGS = ['fish', 'clock', 'teeth', 'head', 'boot', 'bottle', 'key', 'eye', 'cat', 'hat', 'glasses'];
 const HANGING = ['boot', 'key', 'fish', 'teeth', 'glasses', 'hat', 'clock', 'eye'];
 const DIMS = { tower: [14, 26, 38, 95], slab: [24, 38, 20, 50], tenement: [12, 20, 18, 40], deco: [18, 30, 55, 110], shop: [9, 15, 11, 19], workshop: [14, 24, 9, 15], factory: [30, 46, 12, 22], estate: [44, 70, 38, 66] };
@@ -324,8 +325,62 @@ function renderBuilding(b) {
   const shade = (x, y, ww, hh) => shadeRect(x, y, ww, hh, seed + x);
   // a window where someone is up watching telly at night; everyone else is asleep
   const lightAt = (x, y, ww, hh, t) => b.wins.push({ x, y, w: ww, h: hh, t, k: Math.random(), people: chance(0.4) ? 2 : 1 });
+  // a window: glass, a dark room, curtains, blinds, nets, a plant... and the odd boarded-up or broken one
   const win = (x, y, ww, hh, k) => {
-    inkPoly(rectPts(x, y, ww, hh), { fill: h0(seed + k) > 0.3 ? INK : WHITE, w: thin * 1.3 });
+    const r = (h0(seed + k) + 1) / 2, rr = (h0(seed + k * 1.7 + 3) + 1) / 2, small = ww < 1.3 * u;
+    let acc = 0, style = 'glass';
+    for (const [n, p] of WIN_STYLES) { acc += p; if (r * 100 < acc) { style = n; break; } }
+    const base = { glass: '#b8b3a8', dark: '#47423c', curtains: '#3f3a35', blinds: '#cfc9bc', net: '#4a453f', plant: '#b8b3a8', boarded: '#a39d90', broken: '#b8b3a8', paper: '#e6e0d0' }[style];
+    inkPoly(rectPts(x, y, ww, hh), { fill: base, w: thin * 1.3 });
+    if (!small) {
+      ctx.save(); ctx.beginPath(); ctx.rect(x, y, ww, hh); ctx.clip();
+      const glint = () => { ctx.fillStyle = 'rgba(240,236,226,0.55)'; ctx.beginPath(); ctx.moveTo(x + ww * 0.1, y + hh); ctx.lineTo(x + ww * 0.35, y + hh); ctx.lineTo(x + ww * 0.75, y); ctx.lineTo(x + ww * 0.5, y); ctx.fill(); };
+      if (style === 'glass' || style === 'plant' || style === 'broken') glint();
+      if (style === 'dark') { ctx.fillStyle = 'rgba(240,236,226,0.12)'; ctx.fillRect(x + ww * 0.6, y, ww * 0.12, hh); }
+      if (style === 'curtains') {
+        const col = ['#d9d2c2', '#8e877a', WHITE, '#6b665e'][Math.floor(rr * 4)];
+        for (const sd of [-1, 1]) {
+          const cw = ww * (0.22 + rr * 0.3), ex = sd < 0 ? x : x + ww, ix = ex - sd * cw;
+          inkPoly([[ex, y], [ix, y], [ex - sd * cw * 0.55, y + hh * 0.6], [ix, y + hh], [ex, y + hh]], { fill: col, w: thin * 0.7 });
+          for (let f = 1; f < 3; f++) line(ex - sd * cw * f / 3, y, ex - sd * cw * f / 3 * 0.8, y + hh * 0.55, thin * 0.5);
+        }
+      } else if (style === 'blinds') {
+        const down = hh * (0.3 + rr * 0.7);
+        ctx.fillStyle = '#4a453f'; ctx.fillRect(x, y + down, ww, hh - down);
+        for (let yy = y + 0.25 * u; yy < y + down; yy += 0.28 * u) line(x, yy, x + ww, yy, thin * 0.45);
+        line(x, y + down, x + ww, y + down, thin * 1.2);
+      } else if (style === 'net') {
+        const top = y + hh * (rr < 0.5 ? 0.4 : 0);
+        ctx.fillStyle = 'rgba(221,215,202,0.9)'; ctx.fillRect(x, top, ww, y + hh - top);
+        ctx.strokeStyle = 'rgba(22,17,15,0.25)'; ctx.lineWidth = thin * 0.4; ctx.beginPath();
+        for (let xx = x - hh; xx < x + ww; xx += 0.3 * u) { ctx.moveTo(xx, y + hh); ctx.lineTo(xx + hh, top); ctx.moveTo(xx, top); ctx.lineTo(xx + hh, y + hh); }
+        ctx.stroke();
+        line(x, top, x + ww, top, thin * 0.6);
+      } else if (style === 'plant') {
+        const px = x + ww * (0.3 + rr * 0.4), py = y + hh;
+        for (let l = 0; l < 4; l++) ink(ellPts(px + (l - 1.5) * 0.25 * u, py - 0.9 * u - (l % 2) * 0.35 * u, 0.35 * u, 0.22 * u, { rot: (l - 1.5) * 0.6, seed: px + l }), { fill: '#3a362f', w: 0 });
+        inkPoly([[px - 0.35 * u, py - 0.6 * u], [px + 0.35 * u, py - 0.6 * u], [px + 0.25 * u, py], [px - 0.25 * u, py]], { fill: '#6b665e', w: thin * 0.6 });
+      } else if (style === 'boarded') {
+        for (let i = 0; i < 3; i++) {
+          const yy = y + hh * (0.15 + i * 0.3), tilt = (rr - 0.5 + i * 0.13) * hh * 0.3;
+          inkPoly([[x - 0.2 * u, yy - tilt], [x + ww + 0.2 * u, yy + tilt], [x + ww + 0.2 * u, yy + tilt + hh * 0.22], [x - 0.2 * u, yy - tilt + hh * 0.22]], { fill: '#cbbfa6', w: thin * 0.8 });
+        }
+      } else if (style === 'broken') {
+        const cx = x + ww * (0.3 + rr * 0.4), cy = y + hh * 0.4;
+        inkPoly([[cx - 0.3 * u, cy - 0.2 * u], [cx + 0.25 * u, cy - 0.35 * u], [cx + 0.35 * u, cy + 0.2 * u], [cx - 0.1 * u, cy + 0.35 * u]], { fill: '#2e2a26', w: 0 });
+        for (let i = 0; i < 6; i++) { const a = i * 1.05 + rr; line(cx, cy, cx + Math.cos(a) * ww, cy + Math.sin(a) * hh * 0.7, thin * 0.5); }
+      } else if (style === 'paper') {
+        for (let yy = y + 0.4 * u; yy < y + hh - 0.2 * u; yy += 0.3 * u) line(x + 0.2 * ww, yy, x + ww * (0.6 + 0.3 * h0(yy)), yy, thin * 0.4);
+        ctx.fillStyle = 'rgba(255,255,240,0.6)'; ctx.fillRect(x, y, ww * 0.25, 0.25 * u); ctx.fillRect(x + ww * 0.75, y + hh - 0.25 * u, ww * 0.25, 0.25 * u);
+      }
+      ctx.restore();
+      // frame and glazing bars
+      if (style !== 'boarded') {
+        line(x + ww / 2, y, x + ww / 2, y + hh, thin * 0.9);
+        if (hh > 2.2 * u) line(x, y + hh * 0.35, x + ww, y + hh * 0.35, thin * 0.8);
+      }
+      inkPoly(rectPts(x, y, ww, hh), { w: thin * 1.3 });
+    }
     if (chance(0.1)) lightAt(x, y, ww, hh, rand(0.15, 0.9));
     if (h0(seed + k + 0.37) > 0.45) { // an AC box hanging under the window
       inkPoly(rectPts(x + ww * 0.1, y + hh + 0.15 * u, ww * 0.8, 0.9 * u), { fill, w: thin * 1.2 });

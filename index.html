@@ -141,6 +141,53 @@ function sittingCat(x, y, k, dir, fill = INK) {
   if (fill === INK) { ctx.fillStyle = '#f4f0a0'; for (const e of [0.05, 0.5]) { ctx.beginPath(); ctx.arc(x + dir * e * k, y - 2.6 * k, 0.12 * k, 0, TAU); ctx.fill(); } }
 }
 
+// CCTV camera on a wall bracket at (x, y), looking out and down in direction dir
+function camera(x, y, dir, k) {
+  const thin = LW * 0.45, a = 0.35, fx = dir * Math.cos(a), fy = Math.sin(a), dx = -dir * Math.sin(a), dy = Math.cos(a);
+  const jx = x + dir * 1.1 * k, jy = y;
+  const P = (f, d) => [jx + fx * f + dx * d, jy + fy * f + dy * d];
+  inkPoly(rectPts(x - 0.15 * k, y - 0.6 * k, 0.3 * k, 1.2 * k), { fill: PAPER, w: thin });
+  line(x, y, jx, jy, thin * 1.8);
+  line(x, y + 0.5 * k, jx - dir * 0.2 * k, jy, thin);
+  inkPoly([P(-0.6 * k, -1.05 * k), P(1.8 * k, -1.05 * k), P(1.8 * k, -0.15 * k), P(-0.6 * k, -0.15 * k)], { fill: WHITE, w: thin * 1.2 });
+  inkPoly([P(-0.4 * k, -1.35 * k), P(2.3 * k, -1.35 * k), P(2.3 * k, -1.05 * k), P(-0.4 * k, -1.05 * k)], { fill: INK, w: thin });
+  const [lx, ly] = P(1.85 * k, -0.6 * k);
+  ink(ellPts(lx, ly, 0.2 * k, 0.4 * k, { rot: dir * a, seed: lx }), { fill: INK, w: 0 });
+  const [cx, cy] = P(-0.6 * k, -0.6 * k);
+  cable(cx, cy, x, y - 0.3 * k, 0.6 * k, thin * 0.8);
+}
+
+// dome camera hanging under a ledge at (x, y)
+function dome(x, y, k) {
+  inkPoly(rectPts(x - 0.75 * k, y - 0.25 * k, 1.5 * k, 0.25 * k), { fill: PAPER, w: LW * 0.4 });
+  ctx.beginPath(); ctx.ellipse(x, y, 0.6 * k, 0.55 * k, 0, 0, Math.PI); ctx.closePath();
+  ctx.fillStyle = INK; ctx.fill();
+  ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc(x + 0.2 * k, y + 0.2 * k, 0.1 * k, 0, TAU); ctx.fill();
+}
+
+// a coil of razor wire sitting on y, from x0 to x1
+function razorWire(x0, x1, y, r) {
+  ctx.strokeStyle = INK; ctx.lineWidth = LW * 0.35;
+  ctx.beginPath();
+  for (let x = x0 + r * 0.6; x < x1 - r * 0.3; x += r * 0.55) { ctx.moveTo(x + r * 0.6, y - r); ctx.ellipse(x, y - r, r * 0.6, r, 0, 0, TAU); }
+  ctx.stroke();
+  ctx.beginPath();
+  for (let x = x0 + r * 0.3; x < x1; x += r * 0.35) { const yy = y - r + Math.sin(x * 3.1) * r * 0.9; ctx.moveTo(x - r * 0.12, yy - r * 0.12); ctx.lineTo(x + r * 0.12, yy + r * 0.12); }
+  ctx.stroke();
+}
+
+// a sagging strand of barbed wire
+function barbedWire(x0, y0, x1, y1, sag, gap) {
+  cable(x0, y0, x1, y1, sag, LW * 0.4);
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2 + sag, d = LW * 0.6, step = gap / Math.max(1, Math.hypot(x1 - x0, y1 - y0));
+  ctx.beginPath();
+  for (let t = step / 2; t < 1; t += step) {
+    const v = 1 - t, x = v * v * x0 + 2 * v * t * cx + t * t * x1, y = v * v * y0 + 2 * v * t * cy + t * t * y1;
+    ctx.moveTo(x - d, y - d); ctx.lineTo(x + d, y + d); ctx.moveTo(x - d, y + d); ctx.lineTo(x + d, y - d);
+  }
+  ctx.stroke();
+}
+
 // ---------- dirt ----------
 
 // smudges, soot, muck from the street, rain streaks and cracks over a wall from y = top to y = bottom
@@ -258,6 +305,7 @@ function spawnBuilding(lay) {
     b.stacks.push({ x: b.w * rand(0.15, 0.85), y: -b.h - rand(3, 5) * u, w: 1.2 * u, dark: chance(0.4), t: rand(0, 2), small: true, vent: true });
   }
   // pipes and cables strung across the alley to the next building
+  b.fence = L.links && chance(0.5);
   b.links = !L.links ? [] : Array.from({ length: 3 + (Math.random() * 5 | 0) }, () => chance(0.65)
     ? { pipe: true, y0: rand(0.05, 0.6), y1: rand(0.05, 0.6), d: rand(0.5, 1.3) * u, jog: rand(0.25, 0.75) }
     : { pipe: false, y0: rand(0.1, 0.95), y1: rand(0.1, 0.95), sag: rand(0.5, 4) * u });
@@ -360,6 +408,10 @@ function renderBuilding(b) {
       else if (chance(0.4)) { ink(ellPts(mx, my, 0.6 * u, 0.6 * u, { seed: my }), { fill: WHITE, w: thin }); line(mx, my, mx + 0.35 * u, my - 0.3 * u, thin * 0.8); }
     }
   };
+  // cameras on the corners of the building, watching the street
+  const cams = (n, yTop, yBot) => {
+    for (let i = 0; i < n && yBot > yTop; i++) { const left = chance(0.5); camera(left ? 0.2 * u : w - 0.2 * u, rand(yTop, yBot), left ? -1 : 1, 0.75 * u); }
+  };
   const wallACs = (n, x0, x1, yTop, yBot) => { for (let i = 0; i < n && yBot > yTop; i++) wallAC(rand(x0, x1 - 2.6 * u), rand(yTop, yBot)); };
   const wallDishes = (n, x0, x1, yTop, yBot) => {
     for (let i = 0; i < n && yBot > yTop; i++) {
@@ -380,6 +432,7 @@ function renderBuilding(b) {
     if (x1 - x0 > 7 * u && chance(0.5)) roofAC(rand(x0 + u, x1 - 6 * u), roofY);
     for (let i = 0, n = Math.random() * 3 | 0; i < n; i++) dish(rand(x0 + u, x1 - u), roofY, rand(1.1, 2.2) * u, pick([-1, 1]));
     if (chance(0.3)) sittingCat(rand(x0 + 2 * u, x1 - 2 * u), roofY, u * 0.9, pick([-1, 1]));
+    if (chance(0.2)) razorWire(x0, x1, roofY, 0.6 * u);
   };
   // the odd things these shops sell, standing on the shelf at (x, y)
   const oddThing = (kind, x, y, s, fg) => {
@@ -413,10 +466,11 @@ function renderBuilding(b) {
     inkPoly(rectPts(dx + dw * 0.2, -4.4 * v, dw * 0.6, 1.8 * v), { fill: INK, w: thin });
     if (chance(0.5)) inkPoly(rectPts(dx + dw * 0.25, -2.3 * v, dw * 0.5, 0.6 * v), { fill: WHITE, w: thin * 0.6 }); // a note on the door
     const style = pick(['stripes', 'stripes', 'dark', 'plain', 'none']);
-    if (style !== 'none') awning(x0 - 0.3 * v, x0 + winW + 0.3 * v, -sh + 1.4 * v, style);
-    signBoard(x0 + winW / 2, -sh - 2.4 * v, pick(SHOP_NAMES), 1.3 * v, chance(0.5), winW + u);
+    if (style !== 'none') awning(x0 - 0.3 * v, x0 + winW + 0.3 * v, -sh + 1.9 * v, style);
+    signBoard(x0 + winW / 2, -sh - 1.1 * v, pick(SHOP_NAMES), 1.3 * v, chance(0.5), winW + u);
+    if (chance(0.35)) camera(dx + dw * 0.5, -5.8 * v, chance(0.5) ? 1 : -1, 0.55 * v); // keeping an eye on the door
     if (chance(0.45)) { // a sign hanging off a bracket
-      const hx = x1 - 0.2 * v, hy = -sh - 4.6 * v, ex = hx + 2.2 * v;
+      const hx = x1 - 0.2 * v, hy = -sh - 3.4 * v, ex = hx + 2.2 * v;
       line(hx, hy, hx + 2.9 * v, hy, LW * 0.8);
       line(hx, hy + 1.2 * v, hx + 1.6 * v, hy, thin);
       line(ex - 0.5 * v, hy, ex - 0.5 * v, hy + 0.6 * v, thin * 0.8); line(ex + 0.5 * v, hy, ex + 0.5 * v, hy + 0.6 * v, thin * 0.8);
@@ -463,11 +517,12 @@ function renderBuilding(b) {
     inkPoly(rectPts(0, -h, w, h), { fill });
     shade(w * 0.8, -h, w * 0.2, h);
     const cols = Math.max(2, Math.floor((w - 2 * u) / (2.6 * u))), cw = (w - 2 * u) / cols;
-    for (let i = 0; i < cols; i++) for (let j = 0, y = -h + 2.5 * u; y < -12.5 * u; j++, y += 3.2 * u) win(u + i * cw + cw * 0.2, y, cw * 0.6, 2 * u, i * 13.1 + j * 7.7);
+    for (let i = 0; i < cols; i++) for (let j = 0, y = -h + 2.5 * u; y < -10.5 * u; j++, y += 3.2 * u) win(u + i * cw + cw * 0.2, y, cw * 0.6, 2 * u, i * 13.1 + j * 7.7);
     dirt(0, w, -h);
     wallACs(2 + (Math.random() * 5 | 0), 0.3 * u, w * 0.95, -h + 3 * u, -12 * u);
     wallDishes(Math.random() * 3 | 0, 0.5 * u, w * 0.8, -h + 4 * u, -12 * u);
     plumbing(2 + (Math.random() * 3 | 0), 0.5 * u, w * 0.95, -h + u, -9 * u);
+    cams(1 + (Math.random() * 2 | 0), -h * 0.6, -9 * u);
     if (chance(0.4)) fireEscape(w * 0.62, w * 0.34, -h + 4 * u, -13 * u, 6.4 * u);
     else if (chance(0.6)) ladder(chance(0.5) ? 0.4 * u : w - 1.4 * u, -h, -9 * u);
     shopFront(0.4 * u, w * 0.6);
@@ -500,7 +555,7 @@ function renderBuilding(b) {
     inkPoly(rectPts(0, -h, w, h), { fill });
     shade(w * 0.86, -h, w * 0.14, h);
     const fh = 3.6 * u, units = Math.floor((w - u) / (5 * u)), uw = (w - u) / units;
-    for (let j = 0, y = -h + 1.5 * u; y < -3.6 * fh; j++, y += fh) {
+    for (let j = 0, y = -h + 1.5 * u; y < -3.1 * fh; j++, y += fh) {
       line(0, y + fh, w, y + fh, thin);
       for (let i = 0; i < units; i++) {
         const x = u * 0.5 + i * uw;
@@ -520,6 +575,7 @@ function renderBuilding(b) {
     dirt(0, w, -h);
     wallACs(3 + (Math.random() * 6 | 0), 0.3 * u, w * 0.95, -h + 2 * u, -13 * u);
     plumbing(2 + (Math.random() * 3 | 0), u, w - u, -h + u, -9.5 * u);
+    cams(1 + (Math.random() * 3 | 0), -h * 0.6, -9.5 * u);
     if (chance(0.4)) fireEscape(0.6 * u, w * 0.25, -h + 3 * u, -13 * u, 7.2 * u);
     if (chance(0.6)) ladder(w - 2.4 * u, -h, -9.5 * u);
     shopFront(1.4 * u, w * 0.4);
@@ -536,7 +592,7 @@ function renderBuilding(b) {
     for (let x = 0; x < w; x += 1.2 * u) line(x, -h + 0.2 * u, x, -h + 0.8 * u, thin * 1.5);
     const cols = Math.max(2, Math.floor((w - 2 * u) / (3.4 * u))), cw = (w - 2 * u) / cols;
     let lastLanding = 0;
-    for (let j = 0, y = -h + 2.5 * u; y < -13 * u; j++, y += 4.2 * u) {
+    for (let j = 0, y = -h + 2.5 * u; y < -11 * u; j++, y += 4.2 * u) {
       for (let i = 0; i < cols; i++) {
         const x = u + i * cw + cw * 0.25;
         win(x, y, cw * 0.5, 2.6 * u, i * 9.7 + j * 4.3);
@@ -553,6 +609,7 @@ function renderBuilding(b) {
       }
     }
     if (lastLanding) ladder(w * 0.6 + w * 0.36 * 0.75, lastLanding, lastLanding + 5 * u, false); // drop ladder
+    if (lastLanding && chance(0.5)) razorWire(w * 0.6, w * 0.96, lastLanding - 1.2 * u, 0.5 * u);
     dirt(0, w, -h, 0, 1.2);
     drain(0.3 * u, -h);
     pipeLine([[w * 0.45, -2.6 * u], [w * 0.45, -7 * u], [w * 0.58, -7 * u]], 0.4 * u, fill); // gas riser
@@ -560,13 +617,15 @@ function renderBuilding(b) {
     wallACs(1 + (Math.random() * 4 | 0), 0.3 * u, w * 0.6, -h + 3 * u, -12 * u);
     wallDishes(Math.random() * 2 | 0, 0.5 * u, w * 0.5, -h + 3 * u, -12 * u);
     plumbing(1 + (Math.random() * 3 | 0), u, w * 0.55, -h + u, -9 * u);
+    cams(Math.random() * 3 | 0, -h * 0.7, -9 * u);
     shopFront(1.2 * u, w - 0.8 * u);
     roofStuff(0, w, -h - 1.2 * u, 1 + (Math.random() * 3 | 0));
   } else if (type === 'shop') {
     inkPoly(rectPts(0, -h, w, h), { fill });
     shade(w * 0.85, -h, w * 0.15, h);
     inkPoly(rectPts(-0.5 * u, -h - u, w + u, u), { fill });
-    for (let y = -h + 1.5 * u; y < -13 * u; y += 4 * u) {
+    if (chance(0.4)) razorWire(-0.5 * u, w + 0.5 * u, -h - u, 0.6 * u);
+    for (let y = -h + 1.5 * u; y < -11 * u; y += 4 * u) {
       for (let x = 1.2 * u; x + 2 * u < w - u; x += 3.6 * u) {
         win(x, y, 2 * u, 2.4 * u, x + y);
         inkPoly(rectPts(x - 0.2 * u, y + 2.5 * u, 2.4 * u, 0.6 * u), { fill, w: thin * 1.2 });
@@ -576,6 +635,7 @@ function renderBuilding(b) {
     dirt(0, w, -h, 0, 1.2);
     if (h > 12 * u) wallACs(1 + (Math.random() * 2 | 0), 0.3 * u, w * 0.9, -h + 2 * u, -11 * u);
     plumbing(1 + (Math.random() * 2 | 0), u, w - u, -h + u, -9 * u);
+    cams(chance(0.5) ? 1 : 0, -h + 2 * u, -9 * u);
     if (chance(0.4)) ladder(0.3 * u, -h, -9 * u, false);
     shopFront(0.6 * u, w - 1.4 * u);
     drain(w - 0.8 * u, -h);
@@ -594,6 +654,7 @@ function renderBuilding(b) {
     else line(-0.6 * u, -h + 0.2 * u, b.roof === 'shed' ? w + 0.6 * u : w / 2, b.roof === 'shed' ? -h - 3 * u : -h - 3.6 * u, LW * 1.3);
     if (b.roof === 'gable') line(w / 2, -h - 3.6 * u, w + 0.6 * u, -h + 0.2 * u, LW * 1.3);
     shade(w * 0.86, -h - 3 * u, w * 0.14, h + 3 * u);
+    if (chance(0.5)) razorWire(0, w, -h, 0.7 * u);
     // a big roll-up door, sometimes half open on a dark interior
     const dw = Math.min(w * 0.45, 8 * u), dh = Math.min(h * 0.55, 7 * u), dx = w * 0.07;
     inkPoly(rectPts(dx, -dh, dw, dh), { fill });
@@ -605,6 +666,8 @@ function renderBuilding(b) {
     inkPoly(rectPts(w * 0.62, -4.5 * u, 2 * u, 4.5 * u), { fill });
     dirt(0, w, -h, 0, 1.6);
     plumbing(2 + (Math.random() * 2 | 0), w * 0.55, w - 0.5 * u, -h + 0.5 * u, 0);
+    camera(0.2 * u, -h + 1.2 * u, -1, 0.7 * u);
+    if (chance(0.6)) dome(dx + dw / 2, -dh - 0.2 * u, 0.8 * u);
     if (chance(0.6)) ladder(w - 1.6 * u, -h - (b.roof === 'shed' ? 2.6 : 0) * u, 0, false);
     signBoard(w * 0.42, -h + 1.8 * u, pick(WORKSHOP_NAMES), 1.4 * u, chance(0.5), w * 0.8);
     if (chance(0.5)) wallAC(w * 0.62, -h * 0.32 - 2 * u);
@@ -627,9 +690,12 @@ function renderBuilding(b) {
     inkPoly(pts, { fill });
     for (let i = 0; i < n; i++) hatch([polyClip([[i * tw, -h], [i * tw, -h - th], [i * tw + tw * 0.35, -h - th * 0.65], [i * tw + tw * 0.35, -h]])], i * tw, -h - th / 2, th, -1.2, LW * 0.8, thin, seed + i);
     line(0, -h, hw, -h, thin * 1.5);
+    if (chance(0.6)) razorWire(0, hw, -h, 0.7 * u);
     for (let x = 1.5 * u; x + 1.8 * u < hw - u; x += 3 * u) inkPoly(rectPts(x, -h * 0.85, 1.8 * u, h * 0.3), { fill: WHITE, w: thin * 1.5 });
     dirt(0, hw, -h, 0, 1.3);
     plumbing(3 + (Math.random() * 3 | 0), 0.5 * u, hw - 0.5 * u, -h + 0.5 * u, 0);
+    camera(0.2 * u, -h * 0.75, -1, 0.75 * u);
+    if (chance(0.6)) camera(hw - 0.2 * u, -h * 0.75, 1, 0.75 * u);
     if (chance(0.7)) ladder(0.4 * u, -h, 0, true);
     const dw = Math.min(6 * u, hw * 0.25), dx = hw * 0.55;
     inkPoly(rectPts(dx, -h * 0.42, dw, h * 0.42), { fill });
@@ -660,7 +726,7 @@ function renderBuilding(b) {
       const cols = Math.max(2, Math.floor(tw / (2.4 * u)));
       for (let i = 1; i < cols; i++) {
         const px = x + i * tw / cols;
-        const clear = fw === 1 ? 12 * u : u;
+        const clear = fw === 1 ? 10 * u : u;
         line(px, y - th + u, px, y - clear, thin);
         for (let j = 0, wy = y - th + 1.6 * u; wy < y - clear - 2 * u; j++, wy += 3 * u) win(px - tw / cols * 0.5 - 0.45 * u, wy, 0.9 * u, 1.7 * u, i * 3.3 + j * 7.1 + fw);
       }
@@ -675,6 +741,7 @@ function renderBuilding(b) {
     shopFront(0.6 * u, w * 0.48);
     shopFront(w * 0.52, w - 0.6 * u);
     plumbing(1 + (Math.random() * 3 | 0), u, w - u, -h * 0.55, -10 * u);
+    cams(1 + (Math.random() * 2 | 0), -h * 0.5, -10 * u);
     if (chance(0.5)) ladder(w - 1.6 * u, -h * 0.62, -10 * u);
   }
 }
@@ -686,7 +753,7 @@ function makePole(x) {
   it.attach = [[-3, -29.5], [-1.4, -29.5], [1.4, -29.5], [3, -29.5], [-2, -26.5], [2, -26.5]].map(([a, b]) => [4 * U + a * U, b * U]);
   it.drops = [];
   for (let i = 0, n = 1 + (Math.random() * 3 | 0); i < n; i++) it.drops.push({ a: (Math.random() * 6) | 0, dx: rand(-16, 12) * U, h: rand(15, 45) * B, sag: rand(1, 3) * U });
-  const transformer = chance(0.4), poster = chance(0.5);
+  const transformer = chance(0.4), poster = chance(0.5), cam = chance(0.4), camDir = pick([-1, 1]);
   it.sprite = makeSprite(8 * U, 33 * U, B, () => {
     const x = 4 * U, thin = LW * 0.45;
     inkPoly([[x - 0.45 * U, 0], [x - 0.3 * U, -31 * U], [x + 0.3 * U, -31 * U], [x + 0.45 * U, 0]], { fill: PAPER });
@@ -703,6 +770,7 @@ function makePole(x) {
       shadeRect(x + 1.6 * U, -23 * U, B, 4 * U, x + 1);
       line(x + 0.3 * U, -20 * U, x + 0.5 * U, -20 * U, LW);
     }
+    if (cam) camera(x + (camDir > 0 ? 0.35 : -0.35) * U, -15 * U, camDir, 0.7 * U);
     if (poster) {
       inkPoly(rectPts(x - 0.8 * U, -9 * U, 1.6 * U, 2 * U), { fill: WHITE, w: thin });
       for (let i = 0; i < 3; i++) line(x - 0.5 * U, -8.5 * U + i * 0.5 * U, x + 0.5 * U, -8.5 * U + i * 0.5 * U, thin * 0.7);
@@ -798,6 +866,17 @@ function drawLinks(lay) {
   for (let i = 0; i + 1 < items.length; i++) {
     const a = items[i], b = items[i + 1], u = a.u, x0 = a.x + a.w, x1 = b.x, top = Math.min(a.h, b.h) * 0.92;
     if (x1 - x0 < 0.5 * u) continue;
+    if (a.fence && x1 - x0 > 2 * u) { // mesh fence across the alley, wire on top
+      const prev = boil, fh = 6 * u, top = lay.base - fh, gw = x1 - x0;
+      boil = 0;
+      for (const ang of [0.8, -0.8]) hatch([() => ctx.rect(x0, top, gw, fh)], x0 + gw / 2, top + fh / 2, gw + fh, ang, 0.6 * u, LW * 0.3, 7);
+      for (let i = 0, n = Math.max(1, Math.round(gw / (3 * u))); i <= n; i++) line(x0 + gw * i / n, lay.base, x0 + gw * i / n, top - 1.6 * u, LW * 0.8);
+      line(x0, top, x1, top, LW * 0.7);
+      barbedWire(x0, top - 0.7 * u, x1, top - 0.7 * u, 0.3 * u, 0.8 * u);
+      barbedWire(x0, top - 1.4 * u, x1, top - 1.4 * u, 0.3 * u, 0.8 * u);
+      razorWire(x0, x1, top - 1.6 * u, 0.9 * u);
+      boil = prev;
+    }
     for (const l of a.links) {
       const y0 = lay.base - l.y0 * top, y1 = lay.base - l.y1 * top;
       if (!l.pipe) { cable(x0, y0, x1, y1, l.sag, LW * 0.5); continue; }

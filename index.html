@@ -287,13 +287,16 @@ const SHOP_NAMES = ['BEGAGNADE SYMASKINER', 'TANDTEKNIKER', 'KONSERVATOR', 'PERU
   'KAMERAREPARATIONER', 'ÄGG & SMÖR', 'BOKBINDERI', 'GRAVSTENAR', 'SKÖLDPADDOR & TILLBEHÖR', 'UNIFORMER', 'MANNEKÄNGER', 'PIANOSTÄMNING',
   'LIKKISTOR', 'SPELKORT & TÄRNINGAR', 'MEDALJER & POKALER', 'URMAKARE', 'KORV', 'TOBAK', 'FRISÖR', 'KIOSK', 'LOTTO', 'PANT'];
 const WIN_STYLES = [['glass', 24], ['dark', 22], ['curtains', 20], ['blinds', 14], ['net', 10], ['plant', 4], ['boarded', 2], ['broken', 2], ['paper', 2]];
+const ROOF_SIGNS = ['NORDKAFFE', 'BLÅ TVÄTT', 'RADIO OLSSON', 'SOLMARGARIN', 'TOBAKSBOLAGET', 'GLÖDLAMPOR', 'FÖRSÄKRINGAR', 'KORVFABRIKEN',
+  'DAMMSUGARE', 'SKOKRÄM', 'BILDÄCK', 'LÄSK', 'TVÅL', 'HOTELL', 'PILSNER', 'TANDKRÄM', 'KEX', 'FÄRG & TAPET', 'SYMASKINER', 'MOTOROLJA', 'KAKAO', 'SNUS'];
+const SLOGANS = ['BÄST I TEST', 'SEDAN 1931', 'FÖR HELA FAMILJEN', 'KÖP NU', 'ALLTID FÄRSKT', 'SVENSK KVALITET', 'DRYGT OCH BILLIGT', 'SOM VANLIGT'];
 const ODD_THINGS = ['fish', 'clock', 'teeth', 'head', 'boot', 'bottle', 'key', 'eye', 'cat', 'hat', 'glasses'];
 const HANGING = ['boot', 'key', 'fish', 'teeth', 'glasses', 'hat', 'clock', 'eye'];
 const DIMS = { tower: [14, 26, 38, 95], slab: [24, 38, 20, 50], tenement: [12, 20, 18, 40], deco: [18, 30, 55, 110], shop: [9, 15, 11, 19], workshop: [14, 24, 9, 15], factory: [30, 46, 12, 22], estate: [44, 70, 38, 66] };
 
 function spawnBuilding(lay) {
   const L = lay.L, u = B * L.s, type = pick(L.types), d = DIMS[type];
-  const b = { type, L, u, w: rand(d[0], d[1]) * u, h: rand(d[2], d[3]) * u, seed: rand(0, 1000), stacks: [], wins: [], lamps: [] };
+  const b = { type, L, u, w: rand(d[0], d[1]) * u, h: rand(d[2], d[3]) * u, seed: rand(0, 1000), stacks: [], wins: [], lamps: [], letters: [] };
   if (['tower', 'slab', 'deco'].includes(type) && chance(0.2)) b.h *= rand(1.25, 1.6); // the odd giant
   const tall = () => (chance(0.3) ? rand(75, 115) : rand(32, 58)) * u;
   if (type === 'factory') {
@@ -488,7 +491,71 @@ function renderBuilding(b) {
     for (let i = 1; i < 8; i++) line(x + i * 0.55 * u, roofY - 2 * u, x + i * 0.55 * u, roofY - 0.4 * u, thin * 0.7);
     for (const fx of [1.3, 3.5]) ink(ellPts(x + fx * u, roofY - 2.4 * u, 0.95 * u, 0.3 * u, { seed: x + fx }), { fill: INK, w: thin });
   };
+  // advertising up on the roof: a billboard on scaffolding, big letters on a lattice, or a disc on a pole
+  const roofSign = (x0, x1, roofY) => {
+    const sw = Math.min(x1 - x0 - u, rand(14, 26) * u), sx = x0 + rand(0.5 * u, x1 - x0 - sw - 0.5 * u), name = pick(ROOF_SIGNS);
+    const kind = pick(['billboard', 'billboard', 'letters', 'letters', 'disc']), legH = rand(2, 4) * u, font = (sz) => `bold ${sz}px "Trebuchet MS", Verdana, sans-serif`;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    if (kind === 'billboard') {
+      const bh = Math.min(sw * rand(0.28, 0.36), 9 * u), by = roofY - legH - bh, n = 3;
+      for (let i = 0; i <= n; i++) line(sx + sw * (0.1 + i * 0.8 / n), roofY, sx + sw * (0.1 + i * 0.8 / n), by + bh, thin * 1.4);
+      for (let i = 0; i < n; i++) { const a = sx + sw * (0.1 + i * 0.8 / n), c2 = sx + sw * (0.1 + (i + 1) * 0.8 / n); line(a, roofY, c2, by + bh, thin); line(c2, roofY, a, by + bh, thin); }
+      const cy = by + bh + 0.7 * u;
+      line(sx - 0.5 * u, cy, sx + sw + 0.5 * u, cy, thin * 1.6); // catwalk
+      for (let x = sx - 0.5 * u; x <= sx + sw + 0.5 * u; x += 1.5 * u) line(x, cy, x, cy - 0.5 * u, thin * 0.6);
+      inkPoly(rectPts(sx, by, sw, bh), { fill: chance(0.6) ? WHITE : PAPER, w: LW });
+      inkPoly(rectPts(sx + 0.4 * u, by + 0.4 * u, sw - 0.8 * u, bh - 0.8 * u), { w: thin * 0.8 });
+      const ph = bh * 0.7;
+      oddThing(pick(['bottle', 'clock', 'hat', 'boot', 'glasses', 'key', 'fish', 'cat']), sx + ph * 0.55, by + bh * 0.85, ph * 0.33, INK);
+      let fs = bh * 0.38; ctx.font = font(fs);
+      const room = sw - ph - 1.5 * u, tw = ctx.measureText(name).width;
+      if (tw > room) { fs *= room / tw; ctx.font = font(fs); }
+      ctx.fillStyle = INK; ctx.fillText(name, sx + ph + 0.6 * u, by + bh * 0.55);
+      ctx.font = font(fs * 0.4); ctx.fillText(pick(SLOGANS), sx + ph + 0.6 * u, by + bh * 0.8);
+      grime(sx, sx + sw, by, by + bh, u, 0.7);
+      if (chance(0.3)) inkPoly([[sx + sw, by], [sx + sw - 2 * u, by], [sx + sw - 0.6 * u, by + 1.6 * u]], { fill: PAPER, w: thin }); // peeling corner
+      if (chance(0.5)) for (const f of [0.25, 0.75]) { // floodlights on the catwalk
+        const lx = sx + sw * f;
+        inkPoly(rectPts(lx - 0.4 * u, cy - 0.9 * u, 0.8 * u, 0.5 * u), { fill: INK, w: 0 });
+        b.lamps.push({ x: lx, y: cy - 0.9 * u, r: bh * 0.8, t: rand(0.1, 0.5) });
+      }
+    } else if (kind === 'letters') {
+      let fs = rand(2.8, 4.2) * u; ctx.font = font(fs);
+      const tw = ctx.measureText(name).width;
+      if (tw > sw) { fs *= sw / tw; ctx.font = font(fs); }
+      const ty = roofY - legH, w2 = ctx.measureText(name).width;
+      line(sx, ty, sx + w2, ty, thin * 1.6); line(sx, ty + legH * 0.5, sx + w2, ty + legH * 0.5, thin);
+      for (let x = sx, i = 0; x < sx + w2; x += 1.2 * u, i++) line(x, roofY, Math.min(sx + w2, x + 1.2 * u), ty, thin * 0.8);
+      for (let x = sx; x <= sx + w2 + 0.1; x += w2 / 3) line(x, roofY, x, ty - fs * 0.5, thin * 1.2);
+      const lit = chance(0.5), dead = Math.random() * name.length | 0, flicker = (dead + 1 + (Math.random() * 3 | 0)) % name.length;
+      let x = sx;
+      [...name].forEach((ch, i) => {
+        const cw = ctx.measureText(ch).width;
+        if (ch !== ' ' && !(i === dead && chance(0.35))) { // now and then a letter has fallen off
+          const tilt = i === dead ? rand(-0.25, 0.25) : 0;
+          ctx.save(); ctx.translate(x, ty); ctx.rotate(tilt);
+          ctx.fillStyle = WHITE; ctx.fillText(ch, 0, 0);
+          ctx.strokeStyle = INK; ctx.lineWidth = thin * 1.2; ctx.strokeText(ch, 0, 0);
+          ctx.restore();
+          if (lit) b.letters.push({ ch, x, y: ty, font: font(fs), tilt, t: rand(0.2, 0.4), state: i === dead ? 'dead' : i === flicker ? 'flicker' : 'on' });
+        }
+        x += cw;
+      });
+    } else {
+      const r = Math.min(sw * 0.3, 4 * u), cx = sx + r + u, cy = roofY - legH - 3 * u - r;
+      line(cx, roofY, cx, cy + r, LW);
+      line(cx - r * 0.6, roofY, cx, cy + r * 0.4, thin); line(cx + r * 0.6, roofY, cx, cy + r * 0.4, thin);
+      ink(ellPts(cx, cy, r, r, { seed: cx }), { fill: chance(0.5) ? INK : WHITE, w: LW });
+      ink(ellPts(cx, cy, r * 0.8, r * 0.8, { seed: cx + 1 }), { w: thin });
+      let fs = r * 0.5; ctx.font = font(fs);
+      const tw = ctx.measureText(name).width;
+      if (tw > r * 1.5) { fs *= r * 1.5 / tw; ctx.font = font(fs); }
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = WHITE; ctx.fillText(name, cx, cy); ctx.strokeStyle = INK; ctx.lineWidth = thin * 0.8; ctx.strokeText(name, cx, cy);
+    }
+  };
   const roofStuff = (x0, x1, roofY, nAnt) => {
+    if (x1 - x0 > 12 * u && chance(0.3)) roofSign(x0, x1, roofY);
     for (let i = 0; i < nAnt; i++) antenna(rand(x0 + u, x1 - u), roofY, rand(4, 9) * u);
     if (x1 - x0 > 7 * u && chance(0.5)) roofAC(rand(x0 + u, x1 - 6 * u), roofY);
     for (let i = 0, n = Math.random() * 3 | 0; i < n; i++) dish(rand(x0 + u, x1 - u), roofY, rand(1.1, 2.2) * u, pick([-1, 1]));
@@ -760,6 +827,7 @@ function renderBuilding(b) {
     for (let i = 0; i < n; i++) hatch([polyClip([[i * tw, -h], [i * tw, -h - th], [i * tw + tw * 0.35, -h - th * 0.65], [i * tw + tw * 0.35, -h]])], i * tw, -h - th / 2, th, -1.2, LW * 0.8, thin, seed + i);
     line(0, -h, hw, -h, thin * 1.5);
     if (chance(0.6)) razorWire(0, hw, -h, 0.7 * u);
+    if (hw > 14 * u && chance(0.25)) roofSign(0, hw, -h - 2.6 * u);
     for (let x = 1.5 * u; x + 1.8 * u < hw - u; x += 3 * u) { inkPoly(rectPts(x, -h * 0.85, 1.8 * u, h * 0.3), { fill: WHITE, w: thin * 1.5 }); }
     dirt(0, hw, -h, 0, 1.3);
     plumbing(3 + (Math.random() * 3 | 0), 0.5 * u, hw - 0.5 * u, -h + 0.5 * u, 0);
@@ -1021,6 +1089,14 @@ function drawLights(lay, d, time) {
       }
     }
     for (const l of b.lamps) if (d > l.t) lampGlow(b.x + l.x, lay.base + l.y, l.r, Math.min(1, (d - l.t) * 4));
+    for (const lt of b.letters) {
+      if (d < lt.t || lt.state === 'dead') continue;
+      if (lt.state === 'flicker' && Math.sin(time * 23 + lt.x) * Math.sin(time * 3.1) > 0.2) continue;
+      ctx.save(); ctx.translate(b.x + lt.x, lay.base + lt.y); ctx.rotate(lt.tilt);
+      ctx.font = lt.font; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = `rgba(222,230,238,${0.4 * Math.min(1, (d - lt.t) * 4)})`; ctx.fillText(lt.ch, 0, 0);
+      ctx.restore();
+    }
   }
 }
 

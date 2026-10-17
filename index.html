@@ -289,6 +289,7 @@ const SHOP_NAMES = ['BEGAGNADE SYMASKINER', 'TANDTEKNIKER', 'KONSERVATOR', 'PERU
 const WIN_STYLES = [['glass', 24], ['dark', 22], ['curtains', 20], ['blinds', 14], ['net', 10], ['plant', 4], ['boarded', 2], ['broken', 2], ['paper', 2]];
 const ROOF_SIGNS = ['NORDKAFFE', 'BLÅ TVÄTT', 'RADIO OLSSON', 'SOLMARGARIN', 'TOBAKSBOLAGET', 'GLÖDLAMPOR', 'FÖRSÄKRINGAR', 'KORVFABRIKEN',
   'DAMMSUGARE', 'SKOKRÄM', 'BILDÄCK', 'LÄSK', 'TVÅL', 'HOTELL', 'PILSNER', 'TANDKRÄM', 'KEX', 'FÄRG & TAPET', 'SYMASKINER', 'MOTOROLJA', 'KAKAO', 'SNUS'];
+const SIDE_WORDS = ['HOTELL', 'BIO', 'BAR', 'DANS', 'RADIO', 'KAFFE', 'PILSNER', 'TVÅL', 'SKOR', 'TOBAK', 'KEX', 'KAKAO', 'LÄSK', 'SNUS', 'PENSIONAT', 'MÖBLER', 'FOTO', 'KORV'];
 const SLOGANS = ['BÄST I TEST', 'SEDAN 1931', 'FÖR HELA FAMILJEN', 'KÖP NU', 'ALLTID FÄRSKT', 'SVENSK KVALITET', 'DRYGT OCH BILLIGT', 'SOM VANLIGT'];
 const ODD_THINGS = ['fish', 'clock', 'teeth', 'head', 'boot', 'bottle', 'key', 'eye', 'cat', 'hat', 'glasses'];
 const HANGING = ['boot', 'key', 'fish', 'teeth', 'glasses', 'hat', 'clock', 'eye'];
@@ -491,10 +492,10 @@ function renderBuilding(b) {
     for (let i = 1; i < 8; i++) line(x + i * 0.55 * u, roofY - 2 * u, x + i * 0.55 * u, roofY - 0.4 * u, thin * 0.7);
     for (const fx of [1.3, 3.5]) ink(ellPts(x + fx * u, roofY - 2.4 * u, 0.95 * u, 0.3 * u, { seed: x + fx }), { fill: INK, w: thin });
   };
-  // advertising up on the roof: a billboard on scaffolding, big letters on a lattice, or a disc on a pole
+  // advertising up on the roof: a billboard on scaffolding, or big letters on a lattice
   const roofSign = (x0, x1, roofY) => {
     const sw = Math.min(x1 - x0 - u, rand(14, 26) * u), sx = x0 + rand(0.5 * u, x1 - x0 - sw - 0.5 * u), name = pick(ROOF_SIGNS);
-    const kind = pick(['billboard', 'billboard', 'letters', 'letters', 'disc']), legH = rand(2, 4) * u, font = (sz) => `bold ${sz}px "Trebuchet MS", Verdana, sans-serif`;
+    const kind = pick(['billboard', 'letters']), legH = rand(2, 4) * u, font = (sz) => `bold ${sz}px "Trebuchet MS", Verdana, sans-serif`;
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     if (kind === 'billboard') {
       const bh = Math.min(sw * rand(0.28, 0.36), 9 * u), by = roofY - legH - bh, n = 3;
@@ -519,7 +520,7 @@ function renderBuilding(b) {
         inkPoly(rectPts(lx - 0.4 * u, cy - 0.9 * u, 0.8 * u, 0.5 * u), { fill: INK, w: 0 });
         b.lamps.push({ x: lx, y: cy - 0.9 * u, r: bh * 0.8, t: rand(0.1, 0.5) });
       }
-    } else if (kind === 'letters') {
+    } else {
       let fs = rand(2.8, 4.2) * u; ctx.font = font(fs);
       const tw = ctx.measureText(name).width;
       if (tw > sw) { fs *= sw / tw; ctx.font = font(fs); }
@@ -541,21 +542,28 @@ function renderBuilding(b) {
         }
         x += cw;
       });
-    } else {
-      const r = Math.min(sw * 0.3, 4 * u), cx = sx + r + u, cy = roofY - legH - 3 * u - r;
-      line(cx, roofY, cx, cy + r, LW);
-      line(cx - r * 0.6, roofY, cx, cy + r * 0.4, thin); line(cx + r * 0.6, roofY, cx, cy + r * 0.4, thin);
-      ink(ellPts(cx, cy, r, r, { seed: cx }), { fill: chance(0.5) ? INK : WHITE, w: LW });
-      ink(ellPts(cx, cy, r * 0.8, r * 0.8, { seed: cx + 1 }), { w: thin });
-      let fs = r * 0.5; ctx.font = font(fs);
-      const tw = ctx.measureText(name).width;
-      if (tw > r * 1.5) { fs *= r * 1.5 / tw; ctx.font = font(fs); }
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = WHITE; ctx.fillText(name, cx, cy); ctx.strokeStyle = INK; ctx.lineWidth = thin * 0.8; ctx.strokeText(name, cx, cy);
     }
   };
+  // a tall blade sign sticking out from the edge of the wall, letters stacked top to bottom
+  const sideSign = (right, yMin = -h + 3 * u) => {
+    const word = pick(SIDE_WORDS), lh = 2.2 * u, sh = word.length * lh + 1.2 * u, yMax = -14 * u - sh;
+    if (yMax < yMin) return;
+    const top = rand(yMin, yMax), sw = 2.6 * u, sx = right ? w - 0.6 * u : -2 * u, dark = chance(0.6), edge = right ? w : 0;
+    for (const f of [0.12, 0.5, 0.88]) line(edge - (right ? 0.8 : -0.8) * u, top + sh * f, right ? sx : sx + sw, top + sh * f, thin * 1.4);
+    inkPoly([[sx, top], [sx + sw / 2, top - 1.4 * u], [sx + sw, top]], { fill: dark ? INK : WHITE, w: thin * 1.2 });
+    inkPoly(rectPts(sx, top, sw, sh), { fill: dark ? INK : WHITE, w: thin * 1.5 });
+    if (!dark) inkPoly(rectPts(sx + 0.3 * u, top + 0.3 * u, sw - 0.6 * u, sh - 0.6 * u), { w: thin * 0.6 });
+    const f = `bold ${1.7 * u}px "Trebuchet MS", Verdana, sans-serif`, lit = chance(0.45), dead = Math.random() * word.length | 0;
+    ctx.font = f; ctx.fillStyle = dark ? WHITE : INK; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    [...word].forEach((ch, i) => {
+      const cx = sx + sw / 2, cy = top + 1.7 * u + i * lh;
+      ctx.fillText(ch, cx, cy);
+      if (lit) b.letters.push({ ch, x: cx, y: cy, font: f, tilt: 0, t: rand(0.2, 0.4), align: 'center', base: 'middle', state: i === dead ? (chance(0.5) ? 'dead' : 'flicker') : 'on' });
+    });
+    grime(sx, sx + sw, top, top + sh, u, 0.5);
+  };
   const roofStuff = (x0, x1, roofY, nAnt) => {
-    if (x1 - x0 > 12 * u && chance(0.3)) roofSign(x0, x1, roofY);
+    if (x1 - x0 > 10 * u && chance(0.6)) roofSign(x0, x1, roofY);
     for (let i = 0; i < nAnt; i++) antenna(rand(x0 + u, x1 - u), roofY, rand(4, 9) * u);
     if (x1 - x0 > 7 * u && chance(0.5)) roofAC(rand(x0 + u, x1 - 6 * u), roofY);
     for (let i = 0, n = Math.random() * 3 | 0; i < n; i++) dish(rand(x0 + u, x1 - u), roofY, rand(1.1, 2.2) * u, pick([-1, 1]));
@@ -657,17 +665,12 @@ function renderBuilding(b) {
     wallDishes(Math.random() * 3 | 0, 0.5 * u, w * 0.8, -h + 4 * u, -12 * u);
     plumbing(2 + (Math.random() * 3 | 0), 0.5 * u, w * 0.95, -h + u, -9 * u);
     cams(1 + (Math.random() * 2 | 0), -h * 0.6, -9 * u);
+    if (chance(0.45)) sideSign(chance(0.5));
     if (chance(0.4)) fireEscape(w * 0.62, w * 0.34, -h + 4 * u, -13 * u, 6.4 * u);
     else if (chance(0.6)) ladder(chance(0.5) ? 0.4 * u : w - 1.4 * u, -h, -9 * u);
     shopFront(0.4 * u, w * 0.6);
     inkPoly(rectPts(w * 0.66, -4.5 * u, w * 0.2, 4.5 * u), { fill: INK });
     inkPoly(rectPts(w * 0.62, -5.3 * u, w * 0.28, 0.8 * u), { fill });
-    if (chance(0.3)) { // vertical hotel sign
-      const sx = w - 0.5 * u, letters = pick(['HOTELL', 'BIO', 'BAR', 'DANS']);
-      inkPoly(rectPts(sx, -h * 0.75, 2.6 * u, letters.length * 2.2 * u + u), { fill: INK, w: thin * 1.5 });
-      ctx.font = `bold ${1.7 * u}px "Trebuchet MS", Verdana, sans-serif`; ctx.fillStyle = WHITE; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      [...letters].forEach((ch, i) => ctx.fillText(ch, sx + 1.3 * u, -h * 0.75 + 1.6 * u + i * 2.2 * u));
-    }
     facadeCables(1);
     inkPoly(rectPts(-0.4 * u, -h - u, w + 0.8 * u, u), { fill });
     const r = h0(seed + 1);
@@ -710,6 +713,7 @@ function renderBuilding(b) {
     wallACs(3 + (Math.random() * 6 | 0), 0.3 * u, w * 0.95, -h + 2 * u, -13 * u);
     plumbing(2 + (Math.random() * 3 | 0), u, w - u, -h + u, -9.5 * u);
     cams(1 + (Math.random() * 3 | 0), -h * 0.6, -9.5 * u);
+    if (chance(0.3)) sideSign(chance(0.5));
     if (chance(0.4)) fireEscape(0.6 * u, w * 0.25, -h + 3 * u, -13 * u, 7.2 * u);
     if (chance(0.6)) ladder(w - 2.4 * u, -h, -9.5 * u);
     shopFront(1.4 * u, w * 0.4);
@@ -752,6 +756,7 @@ function renderBuilding(b) {
     wallDishes(Math.random() * 2 | 0, 0.5 * u, w * 0.5, -h + 3 * u, -12 * u);
     plumbing(1 + (Math.random() * 3 | 0), u, w * 0.55, -h + u, -9 * u);
     cams(Math.random() * 3 | 0, -h * 0.7, -9 * u);
+    if (chance(0.35)) sideSign(chance(0.5));
     shopFront(1.2 * u, w - 0.8 * u);
     roofStuff(0, w, -h - 1.2 * u, 1 + (Math.random() * 3 | 0));
   } else if (type === 'shop') {
@@ -827,7 +832,7 @@ function renderBuilding(b) {
     for (let i = 0; i < n; i++) hatch([polyClip([[i * tw, -h], [i * tw, -h - th], [i * tw + tw * 0.35, -h - th * 0.65], [i * tw + tw * 0.35, -h]])], i * tw, -h - th / 2, th, -1.2, LW * 0.8, thin, seed + i);
     line(0, -h, hw, -h, thin * 1.5);
     if (chance(0.6)) razorWire(0, hw, -h, 0.7 * u);
-    if (hw > 14 * u && chance(0.25)) roofSign(0, hw, -h - 2.6 * u);
+    if (hw > 14 * u && chance(0.5)) roofSign(0, hw, -h - 2.6 * u);
     for (let x = 1.5 * u; x + 1.8 * u < hw - u; x += 3 * u) { inkPoly(rectPts(x, -h * 0.85, 1.8 * u, h * 0.3), { fill: WHITE, w: thin * 1.5 }); }
     dirt(0, hw, -h, 0, 1.3);
     plumbing(3 + (Math.random() * 3 | 0), 0.5 * u, hw - 0.5 * u, -h + 0.5 * u, 0);
@@ -879,6 +884,7 @@ function renderBuilding(b) {
     shopFront(w * 0.52, w - 0.6 * u);
     plumbing(1 + (Math.random() * 3 | 0), u, w - u, -h * 0.55, -10 * u);
     cams(1 + (Math.random() * 2 | 0), -h * 0.5, -10 * u);
+    if (chance(0.35)) sideSign(chance(0.5), -h * 0.6);
     if (chance(0.5)) ladder(w - 1.6 * u, -h * 0.62, -10 * u);
   }
 }
@@ -1093,7 +1099,7 @@ function drawLights(lay, d, time) {
       if (d < lt.t || lt.state === 'dead') continue;
       if (lt.state === 'flicker' && Math.sin(time * 23 + lt.x) * Math.sin(time * 3.1) > 0.2) continue;
       ctx.save(); ctx.translate(b.x + lt.x, lay.base + lt.y); ctx.rotate(lt.tilt);
-      ctx.font = lt.font; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.font = lt.font; ctx.textAlign = lt.align || 'left'; ctx.textBaseline = lt.base || 'alphabetic';
       ctx.fillStyle = `rgba(222,230,238,${0.4 * Math.min(1, (d - lt.t) * 4)})`; ctx.fillText(lt.ch, 0, 0);
       ctx.restore();
     }
